@@ -11,6 +11,12 @@ A release is supported until a later release explicitly withdraws it. Debian
 is the supported base; a future Debian release is added when the product
 declares it.
 
+Security fixes are considered on a **best-effort** basis for the current 0.1.x
+tree. There is no long-term support branch, support contract, response-time
+guarantee or warranty, express or implied. The product is distributed under
+**AGPL-3.0-or-later** and the documentation under **CC-BY-SA-4.0**, without
+warranty, as stated in [`LICENSE`](LICENSE) and `LICENSES/`.
+
 ## Reporting a vulnerability
 
 Do not open a public issue. Report it privately to:

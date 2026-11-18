@@ -10,9 +10,21 @@ passes the gate.
 - Keep the invariants: base machine only, systemd end to end, fully-qualified
   modules, no site data, idempotence. `AGENTS.md` states them.
 
-External contributions are not accepted at this time. Unsolicited pull requests
-or patches may be closed without review. If a change is agreed, it travels as a
-pull request and the maintainer runs the gate before merging.
+## External contributions
+
+External contributions are **not accepted at this time**. Server Edition is maintained
+by the owner; unsolicited pull requests, patches and issues may be closed
+without review. This policy does not limit the rights the licences grant you:
+the source is free software, and you may fork it and modify it under the licence
+terms.
+
+## Support and warranty
+
+No support, service level or warranty is provided, express or implied. The
+product is distributed under **AGPL-3.0-or-later** and the documentation under
+**CC-BY-SA-4.0**, without warranty, as stated in [`LICENSE`](LICENSE),
+`LICENSES/` and `NOTICE`. The product configures a machine; the services a site adds are the site's. You are responsible for your deployment and
+for complying with the licences when you redistribute or modify the code.
 
 ## What a change must carry
 
