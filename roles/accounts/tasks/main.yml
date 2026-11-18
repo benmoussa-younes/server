@@ -67,92 +67,13 @@
 
 # --- the bootstrap password does not survive the first login ------------------
 #
-# The installer writes ONE password for the human account, the same on every
-# machine. It is a way in, not a secret the site keeps, and it must not outlive
-# the first login. The role expires it ONCE and records that it did. A site whose
-# account ALREADY holds the operator's own password sets
-# `accounts_expire_bootstrap_password: false`, and nothing is expired.
-#
-# `chage -d 0` marks the password EXPIRED: the first console or SSH login is
-# forced to choose a new one before the session opens, and the site's pwquality
-# policy (the `security` role) is what the new one must satisfy. It also clears
-# the minimum-days constraint, which would otherwise refuse a change on the very
-# day the machine was installed.
-#
-# ONCE, and only once: re-expiring on every converge would lock the operator out
-# of the password they chose -- a lockout loop, not a policy. The record of the
-# one-time act is `accounts_password_expiry_marker`, and nothing else reads it.
-- name: Whether the bootstrap password has already been expired
-  ansible.builtin.stat:
-    path: "{{ accounts_password_expiry_marker }}"
-  register: accounts_password_expiry_state
-  when: accounts_expire_bootstrap_password | bool
-
-- name: The directory the one-time record lives in exists
-  ansible.builtin.file:
-    path: "{{ accounts_password_expiry_marker | dirname }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0700"
-
-- name: The bootstrap password is expired, so the first login must change it
-  ansible.builtin.command:
-    cmd: "chage -d 0 {{ accounts_human.name }}"
-  when:
-    - accounts_expire_bootstrap_password | bool
-    - not accounts_password_expiry_state.stat.exists
-  changed_when: true
-
-# The state is read from SHADOW, never from `chage -l`: that command prints
-# TRANSLATED text ("le mot de passe doit être changé" on a French host), and an
-# assertion that matches an English sentence is an assertion that fails on a
-# correct passwd entry -- measured on a converted host, where it did exactly
-# that (2026-10-10).
-# Shadow's third field is the day-count of the last change; `chage -d 0` sets it
-# to 0, which is the machine-readable form of "must be changed at the next login".
-- name: The account's password state is read (a field, not a sentence)
-  ansible.builtin.command:
-    cmd: "getent shadow {{ accounts_human.name }}"
-  register: accounts_shadow
-  changed_when: false
-  failed_when: false
-  when:
-    - accounts_expire_bootstrap_password | bool
-    - not ansible_check_mode
-    - not accounts_password_expiry_state.stat.exists
-
-# The positive control, in the run that acts: "the command ran" is not the
-# property, "the account must now change its password" is.
-- name: The bootstrap credential really cannot be kept
-  ansible.builtin.assert:
-    that:
-      - (accounts_shadow.stdout | default('') | split(':')) | length >= 3
-      - (accounts_shadow.stdout | default('') | split(':'))[2] == '0'
-    fail_msg: >-
-      {{ accounts_human.name }}'s shadow entry does not mark the password for
-      change: "{{ accounts_shadow.stdout | default('(unreadable)') }}" (the third
-      field must be 0).
-  when:
-    - accounts_expire_bootstrap_password | bool
-    - not ansible_check_mode
-    - not accounts_password_expiry_state.stat.exists
-
-- name: The one-time act is recorded
-  ansible.builtin.copy:
-    content: |
-      # Written by the `accounts` role: the human account's bootstrap password was
-      # expired here, so the first login must choose a new one. Delete this file
-      # to have the role expire the password again (a re-provision, or a reset).
-      expired_once
-    dest: "{{ accounts_password_expiry_marker }}"
-    owner: root
-    group: root
-    mode: "0600"
-  when:
-    - accounts_expire_bootstrap_password | bool
-    - not ansible_check_mode
-    - not accounts_password_expiry_state.stat.exists
+# The expiry runs in `post_tasks` (`expire.yml`), never here: expiring the
+# password mid-play makes sudo ask for a NEW password on the next task, and a
+# password-based become loses the connection (measured on server-01-testing,
+# 2026-11-18: "Timeout waiting for privilege escalation response: Changement du
+# mot de passe"). The play imports `accounts` with `tasks_from: expire.yml`
+# after every other role, then re-runs `integrity` so the baseline includes the
+# marker the expiry writes.
 
 # --- the human account's password never expires on its own --------------------
 

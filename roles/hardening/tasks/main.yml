@@ -33,7 +33,8 @@
     hardening_sysctl_declared: >-
       {{ [hardening_sysctl_file,
           (hardening_sysctl_file | dirname) ~ '/50-performance.conf',
-          (hardening_sysctl_file | dirname) ~ '/51-performance-network.conf']
+          (hardening_sysctl_file | dirname) ~ '/51-performance-network.conf',
+          (hardening_sysctl_file | dirname) ~ '/62-podman-userns.conf']
          + hardening_sysctl_kept }}
 
 # Only a file NO PACKAGE owns is retired: a distribution drop-in is not this

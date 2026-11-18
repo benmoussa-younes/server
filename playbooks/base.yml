@@ -59,3 +59,21 @@
     # outside a package, and the read-only audit verifies it afterwards.
     - role: integrity
       tags: [integrity]
+
+  post_tasks:
+    # The bootstrap password is retired ONCE, after every role. Any task after
+    # `chage -d 0` would have to answer a password-change prompt for sudo, and a
+    # password-based become loses the connection there (measured on
+    # server-01-testing, 2026-11-18).
+    - name: The bootstrap password is retired after every role
+      ansible.builtin.import_role:
+        name: accounts
+        tasks_from: expire.yml
+      tags: [accounts]
+
+    # The integrity baseline is taken after the last file the product writes --
+    # the expiry marker -- so the audit's manifest matches the host.
+    - name: The baseline includes the last write
+      ansible.builtin.import_role:
+        name: integrity
+      tags: [integrity]

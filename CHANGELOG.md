@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-18
+
+### Fixed
+
+- `accounts`: the bootstrap-password expiry runs in `post_tasks`, after every
+  role. Expiring it mid-play made sudo ask for a new password on the next task
+  and the password-based `become` lost the connection (measured on
+  `server-01-testing`).
+- `podman`: the rootless engine declares `kernel.unprivileged_userns_clone=1` in
+  `62-podman-userns.conf`, loaded after `60-hardening.conf`, reads it back, and
+  removes it when the engine is not declared; `hardening` leaves the key to the
+  engine when `podman_enabled` is true and keeps the file.
+- `integrity`: the manifest accumulator resets on every run, so the role's double
+  import (the play and the `post_tasks`) no longer rewrites the baseline on each
+  converge.
+
 ## [0.1.0] - 2026-11-18
 
 ### Added

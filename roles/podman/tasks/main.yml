@@ -34,6 +34,41 @@
         state: present
         cache_valid_time: 3600
 
+    - name: The user namespace setting rootless Podman needs is declared
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansible; do not edit.
+          # SPDX-License-Identifier: AGPL-3.0-or-later
+          #
+          # Rootless Podman clones an unprivileged user namespace for every
+          # container. 60-hardening.conf disables them; this file loads after it
+          # and re-enables them on a host that declares the engine.
+          kernel.unprivileged_userns_clone = 1
+        dest: "{{ podman_userns_sysctl }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload sysctl
+
+    - name: The sysctl handler runs before the engine is read back
+      ansible.builtin.meta: flush_handlers
+
+    - name: The unprivileged user namespace setting is read
+      ansible.builtin.command:  # noqa: command-instead-of-module
+        cmd: /usr/sbin/sysctl -n kernel.unprivileged_userns_clone
+      register: podman_userns_value
+      changed_when: false
+
+    - name: Unprivileged user namespaces are enabled for the engine
+      ansible.builtin.assert:
+        that:
+          - podman_userns_value.stdout | trim == '1'
+        fail_msg: >-
+          {{ inventory_hostname }}: kernel.unprivileged_userns_clone is
+          {{ podman_userns_value.stdout | trim }}, not 1, so rootless Podman
+          cannot clone its namespace. Check {{ podman_userns_sysctl }} and run
+          `/usr/sbin/sysctl --system`.
+
     - name: The container configuration directories exist
       ansible.builtin.file:
         path: "{{ item }}"
@@ -198,3 +233,13 @@
           - podman_linger_state.stdout | trim == 'Linger=yes'
         fail_msg: "Linger is not enabled for {{ podman_user }}."
       when: podman_linger | bool and not ansible_check_mode
+
+# The drop-in is the only trace of the engine in the kernel's configuration. A
+# site that stops declaring the engine gets the hardened setting back rather
+# than a file that re-enables user namespaces for nothing.
+- name: The engine's user namespace drop-in is removed when the engine is not declared
+  ansible.builtin.file:
+    path: "{{ podman_userns_sysctl }}"
+    state: absent
+  when: not (podman_enabled | bool)
+  notify: Reload sysctl

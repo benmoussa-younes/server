@@ -122,6 +122,10 @@ net.ipv6.conf.default.accept_ra = 0
 # AppArmor transition (`apparmor_restrict_unprivileged_unconfined=1` + an enforced
 # `unprivileged_userns` profile) was MEASURED INEFFECTIVE on Debian: a new
 # userns process stays `unconfined`. `unprivileged_userns_clone=0` is the working
-# lever and DISABLES unprivileged user namespaces entirely. The
-# cost is rootless containers, which this product does not use (Swarm is rootful).
+# lever and DISABLES unprivileged user namespaces entirely. The cost is
+# rootless containers: a site that declares the `podman` engine gets the key
+# from `62-podman-userns.conf`, loaded after this file, and this file leaves it
+# to that role.
+{% if not podman_enabled | default(false) %}
 kernel.unprivileged_userns_clone = 0
+{% endif %}

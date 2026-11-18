@@ -39,6 +39,15 @@
     - not ansible_check_mode
     - not (item.item.optional | default(false))
 
+# The accumulator must start empty on every run: `set_fact` persists across the
+# role's runs in one play, and the play imports this role twice (once as a role,
+# once in `post_tasks` after the accounts marker). Without this reset the second
+# run appends the same lines again and the manifest thrashes -- measured on
+# server-01-testing, 2026-11-18: every converge reported `changed=2`.
+- name: The manifest accumulator starts empty
+  ansible.builtin.set_fact:
+    integrity_manifest_lines: []
+
 - name: The manifest lines are built
   ansible.builtin.set_fact:
     integrity_manifest_lines: >-
