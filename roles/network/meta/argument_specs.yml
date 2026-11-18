@@ -1,0 +1,99 @@
+---
+argument_specs:
+  main:
+    short_description: The wired link, owned by systemd-networkd.
+    description:
+      - Writes the site's wired link declaration for systemd-networkd, retires
+        ifupdown and switches the link without losing the SSH session. The link
+        is DHCP or static; a wireless interface is refused, because this product
+        configures servers and a server is wired.
+    author: Younes BENMOUSSA
+    options:
+      network_interface:
+        type: str
+        required: false
+        description: >-
+          The NIC to own; empty means the interface that carries the default
+          route. A wireless interface (a name starting with `wl`) is refused.
+      network_apply:
+        type: str
+        required: false
+        description: >-
+          `verify` writes the declaration and reads the state but never hands the
+          link over; `manage` also performs the hand-over. `manage` is the
+          default, and a hand-over is a console act.
+        choices: [verify, manage]
+      network_mode:
+        type: str
+        required: false
+        description: How the address is obtained.
+        choices: [dhcp, static]
+      network_address:
+        type: str
+        required: false
+        description: The static address (ignored under dhcp).
+      network_prefix:
+        type: str
+        required: false
+        description: The static prefix length (ignored under dhcp).
+      network_gateway:
+        type: str
+        required: false
+        description: The default route.
+      network_dns:
+        type: list
+        elements: str
+        required: false
+        description: The resolver addresses, written in both modes.
+      network_link_dns_pattern:
+        type: str
+        required: false
+        description: >-
+          The regular expression that recognises a resolver in `resolvectl`'s
+          answer (IPv4, IPv6 or bracketed IPv6, each with an optional port). The
+          role reads the servers a link is actually using through it, because
+          systemd WRAPS that answer and it cannot be compared as text.
+          (?:\d{1,3}(?:\.\d{1,3}){3}|\[[0-9A-Fa-f:]+\]|[0-9A-Fa-f:]*:[0-9A-Fa-f:]+)(?::\d+)?
+      network_domain:
+        type: str
+        required: false
+        description: The search domain.
+      network_wait_online:
+        type: bool
+        required: false
+        description: >-
+          Whether the boot waits for the link. A cable is present from the first
+          moment, so the wait is meaningful; the switch script enables the unit
+          only when this is true.
+      network_dir:
+        type: str
+        required: false
+        description: Where systemd-networkd reads its files.
+      network_file:
+        type: str
+        required: false
+        description: The link file name.
+      network_switch_unit:
+        type: str
+        required: false
+        description: The transient unit the switch runs under.
+      network_switch_script:
+        type: str
+        required: false
+        description: The switch script.
+      network_interfaces_file:
+        type: str
+        required: false
+        description: ifupdown's live file.
+      network_interfaces_backup:
+        type: str
+        required: false
+        description: Where the installer's ifupdown file is preserved.
+      network_resolv_conf:
+        type: str
+        required: false
+        description: The live resolv.conf path.
+      network_resolv_conf_backup:
+        type: str
+        required: false
+        description: Where the DHCP client's resolv.conf is preserved.

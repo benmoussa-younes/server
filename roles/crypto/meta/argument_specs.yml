@@ -1,0 +1,76 @@
+---
+argument_specs:
+  main:
+    short_description: The declared cryptographic policy (SSH and OpenSSL).
+    description:
+      - >-
+        Declares the algorithms SSH may negotiate (no SHA-1, no CBC) and the
+        system-wide OpenSSL TLS policy, through a drop-in under
+        `openssl.cnf.d` so Debian's conffile is never edited. The kernel
+        CryptoAPI and FIPS are deliberately out of scope.
+    author: Younes BENMOUSSA
+    options:
+      crypto_sshd_ciphers:
+        type: list
+        elements: str
+        required: false
+        description: The SSH ciphers, in preference order.
+      crypto_sshd_macs:
+        type: list
+        elements: str
+        required: false
+        description: The SSH MACs; encrypt-then-MAC only.
+      crypto_sshd_kex:
+        type: list
+        elements: str
+        required: false
+        description: The SSH key-exchange algorithms, post-quantum first.
+      crypto_sshd_hostkey_algorithms:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          Host and user key signature algorithms. `rsa-sha2-*` is kept, RSA with
+          SHA-2; `ssh-rsa` (RSA with SHA-1) is not present.
+      crypto_sshd_file:
+        type: str
+        required: false
+        description: The sshd drop-in that carries the algorithm lists.
+      crypto_openssl_policy:
+        type: str
+        required: false
+        description: >-
+          `modern` declares TLS 1.2 minimum with AEAD suites; `default` leaves
+          the distribution's policy untouched.
+        choices: [modern, default]
+      crypto_openssl_conf:
+        type: str
+        required: false
+        description: The OpenSSL configuration the drop-in directory is included from.
+      crypto_openssl_policy_file:
+        type: str
+        required: false
+        description:
+          - File name of the policy drop-in inside `crypto_openssl_conf_dir`.
+          - It is also the literal path the main configuration includes, because
+            OpenSSL does not expand wildcards in `.include`.
+      crypto_openssl_conf_dir:
+        type: str
+        required: false
+        description: The drop-in directory holding the policy.
+      crypto_openssl_min_protocol:
+        type: str
+        required: false
+        description: The minimum TLS protocol.
+      crypto_openssl_cipher_string:
+        type: str
+        required: false
+        description: The TLS 1.2-and-below suite list.
+      crypto_openssl_ciphersuites:
+        type: str
+        required: false
+        description: The TLS 1.3 suite list.
+      crypto_openssl_signature_algorithms:
+        type: str
+        required: false
+        description: The signature algorithms offered, SHA-2 and better only.

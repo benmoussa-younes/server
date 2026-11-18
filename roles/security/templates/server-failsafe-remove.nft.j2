@@ -1,0 +1,9 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Remove the fail-closed table after a successful start. The create-then-delete
+# pair is the same idempotent form the product table uses: it succeeds whether
+# or not the table exists, without a shell conditional in the unit.
+table inet {{ security_nftables_failsafe_table }} {}
+delete table inet {{ security_nftables_failsafe_table }}

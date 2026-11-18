@@ -1,0 +1,67 @@
+---
+argument_specs:
+  main:
+    short_description: The console keyboard.
+    description:
+      - >-
+        Installs console-setup non-interactively and declares the keyboard
+        layout it applies. The base writes /etc/default/keyboard, but nothing
+        applies it until console-setup exists — and console-setup blocks an
+        unattended install when it is configured interactively.
+    author: Younes BENMOUSSA
+    options:
+      keyboard_model:
+        type: str
+        required: false
+        description: The XKB model.
+      keyboard_layout:
+        type: str
+        required: false
+        description: The XKB layout, a two-letter code.
+      keyboard_variant:
+        type: str
+        required: false
+        description: The XKB variant; empty means the layout's default.
+      keyboard_options:
+        type: str
+        required: false
+        description: XKB options.
+      keyboard_grub_keymap_dir:
+        type: str
+        required: false
+        description: >-
+          The directory that holds GRUB's compiled keyboard layouts, readable by
+          the bootloader.
+      keyboard_grub_keymap_name:
+        type: str
+        required: false
+        description: >-
+          The layout's file name, derived from the layout and its variant.
+      keyboard_grub_keymap:
+        type: str
+        required: false
+        description: The compiled GRUB keyboard layout.
+      keyboard_grub_script:
+        type: str
+        required: false
+        description: >-
+          The grub.d script that loads the layout before the menu is drawn.
+      keyboard_console_setup_dropin_dir:
+        type: str
+        required: false
+        description: The drop-in directory of console-setup.service.
+      keyboard_console_setup_dropin:
+        type: str
+        required: false
+        description: The drop-in that orders console-setup after the DRM device.
+      keyboard_vconsole_conf:
+        type: str
+        required: false
+        description: >-
+          Debian's recreated systemd console path; console-setup owns the
+          console and the product removes the inert file.
+      keyboard_vconsole_remove_service:
+        type: str
+        required: false
+        description: >-
+          The unit that removes /etc/vconsole.conf after Debian's tmpfiles ran.

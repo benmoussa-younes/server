@@ -1,0 +1,357 @@
+---
+# The ORDER of this role is the safety property, not a style choice.
+#
+# Installing `systemd-resolved` makes it the resolver of the whole host at once:
+# Debian's `nsswitch.conf` reads `hosts: files myhostname resolve
+# [!UNAVAIL=return] dns`, so every lookup goes to the stub from the moment the
+# package is configured, and never falls through to `dns`. A package installed
+# before its declaration starts a resolver with NO upstream -- the link is not
+# managed by networkd under `network_apply: verify`, so it has no link DNS --
+# and the host loses name resolution until someone notices (measured on
+# the bench host, 2026-10-21).
+#
+# The declaration is therefore written FIRST, into a directory this role owns,
+# and the package is installed after it. The package's own start then reads the
+# configuration, and the host never has a resolver without an upstream.
+
+- name: The DoT and DNSSEC combination is reported
+  # `resolved.conf(5)` requires `DNSSEC=yes` beside `DNSOverTLS=yes`: encrypted
+  # transport that is not validated hides a downgrade. That is the strong form,
+  # and it is fragile in practice -- one badly signed name becomes unreachable.
+  #
+  # `allow-downgrade` is therefore accepted, not refused: the transport is
+  # encrypted either way, and the upstream (a filtering resolver) validates. The
+  # role says what the combination means instead of failing a deliberate choice.
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: DNS over TLS is on with
+      `resolver_dnssec: {{ resolver_dnssec }}`. The transport is encrypted; the
+      validation is the upstream's, not this host's. Set `resolver_dnssec: yes`
+      to validate locally as well.
+  when:
+    - resolver_dns_over_tls | bool
+    - resolver_dnssec != 'yes'
+
+- name: Every DNS over TLS server carries its name
+  # `DNSOverTLS=yes` applies to every `DNS=` entry: a plain address is asked over
+  # TLS and fails, which breaks name resolution. systemd-resolved accepts
+  # `address#server-name` per entry; an entry without `#` is refused here rather
+  # than at the first lookup.
+  ansible.builtin.assert:
+    that:
+      - resolver_dot_unnamed | length == 0
+    fail_msg: >-
+      {{ inventory_hostname }}: resolver_dns_over_tls is on, but
+      {{ resolver_dot_unnamed | join(', ') }} has no `#server-name`. Every
+      entry in network_dns and resolver_fallback_dns must name its certificate,
+      or set resolver_dns_over_tls: false.
+  vars:
+    resolver_dot_unnamed: >-
+      {{ ((network_dns | default([])) + (resolver_fallback_dns | default([])))
+         | reject('search', '#') | list }}
+  when: resolver_dns_over_tls | bool
+
+- name: The resolver settings are known values
+  ansible.builtin.assert:
+    that:
+      - resolver_dnssec in ['yes', 'no', 'allow-downgrade']
+    fail_msg: >-
+      {{ inventory_hostname }}: `resolver_dnssec` must be `yes`, `no` or
+      `allow-downgrade` (got `{{ resolver_dnssec }}`).
+
+- name: The resolver has an upstream to ask
+  # The stub is the host's ONLY resolver once the package is installed
+  # (`nsswitch.conf`: `hosts: ... resolve [!UNAVAIL=return] dns`). Under
+  # `verify`, networkd does not manage the link, so the link's DHCP resolver
+  # never reaches resolved: a host that declares no server would install a
+  # resolver with nothing to ask. That is the outage this role caused on
+  # the bench host (2026-10-21), caught before it can happen again.
+  ansible.builtin.assert:
+    that:
+      - >-
+        (network_dns | default([]) | length > 0)
+        or (resolver_fallback_dns | length > 0)
+    fail_msg: >-
+      {{ inventory_hostname }} would install a resolver with no upstream:
+      `network_apply` is not `manage`, so networkd does not deliver the link's
+      DHCP resolver, and `network_dns` and `resolver_fallback_dns` are both
+      empty. Declare one of them.
+  when: (network_apply | default('manage')) != 'manage'
+
+- name: The resolver drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ resolver_conf_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The resolver is declared
+  ansible.builtin.template:
+    src: 10-server.conf.j2
+    dest: "{{ resolver_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: resolver_declaration
+
+# AFTER the declaration, never before: installing the package activates it for
+# every lookup (`nsswitch.conf`), and a resolver started without an upstream
+# takes the host's name resolution away. Installed here, the package's own
+# start reads the file written above.
+- name: The resolver package is present
+  ansible.builtin.apt:
+    name: systemd-resolved
+    state: present
+    cache_valid_time: 3600
+
+# The package is installed by the task above, so the unit exists on a real run —
+# but not in check mode, where the install is only reported. The start is
+# therefore not simulated there.
+- name: The resolver is enabled and running
+  ansible.builtin.systemd_service:
+    name: systemd-resolved.service
+    enabled: true
+    state: started
+  when: not ansible_check_mode
+
+- name: The resolver is restarted when its declaration changed
+  ansible.builtin.systemd_service:
+    name: systemd-resolved.service
+    state: restarted
+  when:
+    - resolver_declaration.changed
+    - not ansible_check_mode
+
+# The stub binds 127.0.0.53:53; the firewall accepts loopback, and any DNS
+# service a site adds binds its own address, so the two never collide.
+- name: The installer's resolv.conf is preserved once
+  ansible.builtin.copy:
+    src: "{{ resolver_resolv_conf }}"
+    dest: "{{ resolver_resolv_conf_backup }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+  when: resolver_manage_resolv_conf
+
+- name: The stub owns resolv.conf
+  ansible.builtin.file:
+    src: "{{ resolver_stub_resolv_conf }}"
+    dest: "{{ resolver_resolv_conf }}"
+    state: link
+    force: true
+  when: resolver_manage_resolv_conf
+
+# The symlink points into /run, which belongs to the running service: a stub
+# that did not start leaves /etc/resolv.conf dangling and every lookup fails
+# with a file that still looks correct.
+- name: The resolver's stub file is present
+  ansible.builtin.stat:
+    path: "{{ resolver_stub_resolv_conf }}"
+  register: resolver_stub
+  when:
+    - resolver_manage_resolv_conf
+    - not ansible_check_mode
+
+- name: The host resolves through a running stub
+  ansible.builtin.assert:
+    that:
+      - resolver_stub.stat.exists | default(false)
+    fail_msg: >-
+      {{ inventory_hostname }}: {{ resolver_stub_resolv_conf }} does not exist,
+      so {{ resolver_resolv_conf }} points at nothing and no name resolves.
+      Read `systemctl status systemd-resolved`.
+  when:
+    - resolver_manage_resolv_conf
+    - not ansible_check_mode
+
+# The result, not the mechanism: the size of the outage this role can cause is
+# the size of its upstream list, because the stub is the host's only resolver.
+- name: The upstreams the resolver will ask are read
+  ansible.builtin.command:
+    cmd: resolvectl dns
+  register: resolver_upstreams
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: The resolver has servers to ask
+  ansible.builtin.assert:
+    that:
+      - resolver_upstreams.stdout | trim | length > 0
+    fail_msg: >-
+      {{ inventory_hostname }}: systemd-resolved is the host's only resolver and
+      has NO upstream. Read `resolvectl dns`; declare `network_dns` or
+      `resolver_fallback_dns`, then run the role again.
+  when: not ansible_check_mode
+
+# The directory this role declares in is owned. Measured on a converted machine
+# (2026-10-20): a drop-in left by that machine's previous configuration sorted
+# after `10-server.conf` and won BOTH keys -- `DNSSEC=no` and `Domains=~.` --
+# while the role reported success and `resolvectl` showed the other policy.
+- name: The resolver drop-ins already present are listed
+  ansible.builtin.find:
+    paths: "{{ resolver_conf_dir }}"
+    patterns: "*.conf"
+    file_type: file
+  register: resolver_existing
+
+- name: The resolver drop-ins are attached to a package, or not
+  ansible.builtin.command:
+    cmd: dpkg-query -S {{ item }}
+  loop: >-
+    {{ resolver_existing.files | map(attribute='path')
+       | reject('search', '\.retired-')
+       | reject('equalto', resolver_dropin)
+       | list }}
+  loop_control:
+    label: "{{ item | basename }}"
+  register: resolver_owner
+  changed_when: false
+  failed_when: false
+
+- name: The resolver drop-ins no package owns are retired
+  ansible.builtin.command:
+    cmd: >-
+      mv {{ item.item }} {{ item.item }}.retired-{{ ansible_date_time.date }}
+  loop: "{{ resolver_owner.results | rejectattr('rc', 'equalto', 0) | list }}"
+  loop_control:
+    label: "{{ item.item | basename }}"
+  changed_when: true
+  notify: Restart systemd-resolved
+
+# --- the link's declared domains, re-applied after a resolver restart --------
+#
+# networkd exports a link's `Domains=` in `/run/systemd/netif/links/<ifindex>`,
+# and resolved reads that file. The hand-over configures the link once: a
+# resolver restart, or a link state written before the declaration was current,
+# leaves resolved with no per-link domain and the stub publishing `search .`
+# (measured on 2026-10-28: the `.network` file carried
+# `Domains=~. intranet.example.test`, `networkctl status` listed no Search
+# Domains, `resolvectl domain` was empty and `/etc/resolv.conf` said `search .`
+# until a reboot).
+#
+# `resolvectl domain` is the safe repair. On a link networkd manages, resolved
+# refuses the write (`Link ... is managed`) and resolvectl re-applies it through
+# networkd's `SetLinkDomains`, which records it in the link state; resolved then
+# publishes it. It never touches the address. `networkctl reconfigure` is NOT
+# used: on 2026-10-28 it removed the address of the link carrying the session
+# and left the host unreachable.
+#
+# Under `network_apply: verify` the link is not networkd's, so the same command
+# writes resolved's runtime state; the link's boot configuration stays the
+# site's, and the role does not move it.
+- name: The interface that carries the declared domains is known
+  ansible.builtin.set_fact:
+    resolver_link_interface: >-
+      {{ (network_interface_name | default(''))
+         or (network_interface | default(''))
+         or (ansible_facts.default_ipv4.interface | default('')) }}
+    resolver_link_domains_expected: >-
+      {{ (['~.'] + ((network_domain | default('')).split() | map('lower') | list))
+         if (network_domain | default('') | length > 0) else [] }}
+
+- name: The resolver restarts are applied before the link's domains
+  # The retire task above notifies a restart that would run at the end of the
+  # play -- after this role. Flushed here, the repair is written to the resolver
+  # that stays running.
+  ansible.builtin.meta: flush_handlers
+
+- name: The link that carries the declared domains is known
+  ansible.builtin.assert:
+    that:
+      - resolver_link_interface | length > 0
+    fail_msg: >-
+      {{ inventory_hostname }} declares `network_domain` but no interface
+      carries it: set `network_interface`, or let the default route name it.
+  when:
+    - resolver_link_domains_expected | length > 0
+    - not ansible_check_mode
+
+- name: The link's effective domains are read
+  ansible.builtin.command:
+    cmd: "resolvectl domain {{ resolver_link_interface }}"
+  register: resolver_link_domains_current
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when:
+    - resolver_link_domains_expected | length > 0
+    - not ansible_check_mode
+
+- name: The declared domains are re-applied when the link does not carry them
+  ansible.builtin.command:
+    argv: "{{ ['resolvectl', 'domain', resolver_link_interface] + resolver_link_domains_expected }}"
+  when:
+    - not ansible_check_mode
+    - resolver_link_domains_expected | length > 0
+    - >-
+      ((resolver_link_domains_current.stdout | default('')
+        | regex_replace('Link [0-9]+ \([^)]*\):', '')).split() | sort)
+      != (resolver_link_domains_expected | sort)
+  changed_when: true
+
+- name: The link's declared domains are read back
+  ansible.builtin.command:
+    cmd: "resolvectl domain {{ resolver_link_interface }}"
+  register: resolver_link_domains_after
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when:
+    - resolver_link_domains_expected | length > 0
+    - not ansible_check_mode
+
+- name: The link carries the declared domains
+  ansible.builtin.assert:
+    that:
+      - >-
+        (resolver_link_domains_expected | difference(
+          (resolver_link_domains_after.stdout | default('')
+           | regex_replace('Link [0-9]+ \([^)]*\):', '')).split())) | length == 0
+    fail_msg: >-
+      {{ inventory_hostname }}: {{ resolver_link_interface }} reports
+      `{{ resolver_link_domains_after.stdout | default('') }}`, not the declared
+      {{ resolver_link_domains_expected | join(', ') }}. Read
+      `resolvectl domain {{ resolver_link_interface }}` and
+      `networkctl status {{ resolver_link_interface }}`.
+  when:
+    - resolver_link_domains_expected | length > 0
+    - not ansible_check_mode
+
+- name: The effective resolv.conf is read
+  ansible.builtin.slurp:
+    src: "{{ resolver_resolv_conf }}"
+  register: resolver_resolv_content
+  when:
+    - resolver_manage_resolv_conf
+    - resolver_link_domains_expected | length > 0
+    - not ansible_check_mode
+
+- name: The search line the resolver publishes is read
+  ansible.builtin.set_fact:
+    resolver_resolv_search: >-
+      {{ (resolver_resolv_content.content | default('') | b64decode).splitlines()
+         | select('match', '^search\s') | list | first | default('') }}
+  when:
+    - resolver_manage_resolv_conf
+    - resolver_link_domains_expected | length > 0
+    - not ansible_check_mode
+
+- name: The search path carries the declared domains
+  ansible.builtin.assert:
+    that:
+      - >-
+        ((network_domain | default('')).split() | map('lower')
+         | reject('search', '^~') | list
+         | difference(resolver_resolv_search.split())) | length == 0
+    fail_msg: >-
+      {{ inventory_hostname }}: {{ resolver_resolv_conf }} says
+      `{{ resolver_resolv_search | default('no search line') }}`, not the
+      declared search domains of `network_domain`. Read `resolvectl status` and
+      `resolvectl domain {{ resolver_link_interface }}`.
+  when:
+    - resolver_manage_resolv_conf
+    - resolver_link_domains_expected | length > 0
+    - not ansible_check_mode

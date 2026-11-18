@@ -1,0 +1,98 @@
+## Managed by Ansible; do not edit.
+## SPDX-License-Identifier: AGPL-3.0-or-later
+##
+## this product's audit rules. `augenrules`
+## merges this file, in name order, into `/etc/audit/audit.rules` -- the control
+## directives (`-D`, `-b`, `--backlog_wait_time`, `-f`) come from Debian's own
+## `rules.d/audit.rules`. Only EVENT rules live here.
+##
+## No `-D` (the distribution's file already deletes the old ruleset) and no
+## `-e 2`: an immutable ruleset would break this role's reload on the next
+## converge, and is only reversible by a reboot.
+
+## Identity and authentication: a change here is a privilege change.
+-w /etc/passwd -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/security/opasswd -p wa -k identity
+
+## Privilege and PAM.
+-w /etc/sudoers -p wa -k scope
+-w /etc/sudoers.d/ -p wa -k scope
+-w /etc/pam.d/ -p wa -k scope
+
+## SSH access configuration.
+-w /etc/ssh/sshd_config -p wa -k sshd
+-w /etc/ssh/sshd_config.d/ -p wa -k sshd
+
+## The audit configuration itself: a change to it is a change to the trail.
+-w /etc/audit/ -p wa -k auditconfig
+-w /etc/audit/rules.d/ -p wa -k auditconfig
+
+## Time changes (a wrong clock breaks TLS, Kerberos and the audit timeline).
+-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change
+
+## System identity.
+-a always,exit -F arch=b64 -S sethostname,setdomainname -k system-locale
+-w /etc/hostname -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+
+## Kernel module load and unload.
+-a always,exit -F arch=b64 -S init_module,finit_module,delete_module -k modules
+
+## Filesystem mounts.
+-a always,exit -F arch=b64 -S mount -k mounts
+
+## Sessions and logins (CIS 6.2.3.9, 6.2.3.10). `utmp` does not exist on a
+## systemd Debian, and `/run/faillock` appears only after a first lockout: a
+## watch on a missing path fails the whole load, so only real files are watched.
+-w /var/log/wtmp -p wa -k logins
+-w /var/log/btmp -p wa -k logins
+-w /var/log/lastlog -p wa -k logins
+
+## Discretionary access control changes (CIS 6.2.3.8). `fchmodat2` exists on
+## this kernel; a syscall name the kernel does not know would fail the load.
+-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat,fchmodat2,chown,fchown,lchown,fchownat,setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr -F auid>=1000 -F auid!=-1 -k perm_mod
+-a always,exit -F arch=b32 -S chmod,fchmod,fchmodat,chown,fchown,lchown,fchownat,setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr -F auid>=1000 -F auid!=-1 -k perm_mod
+
+## Unsuccessful file access (CIS 6.2.3.11).
+-a always,exit -F arch=b64 -S open,openat,openat2,truncate,ftruncate,creat -F exit=-EACCES -F auid>=1000 -F auid!=-1 -k access
+-a always,exit -F arch=b64 -S open,openat,openat2,truncate,ftruncate,creat -F exit=-EPERM -F auid>=1000 -F auid!=-1 -k access
+-a always,exit -F arch=b32 -S open,openat,openat2,truncate,ftruncate,creat -F exit=-EACCES -F auid>=1000 -F auid!=-1 -k access
+-a always,exit -F arch=b32 -S open,openat,openat2,truncate,ftruncate,creat -F exit=-EPERM -F auid>=1000 -F auid!=-1 -k access
+
+## File deletion by users (CIS 6.2.3.13).
+-a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat,renameat2 -F auid>=1000 -F auid!=-1 -k delete
+-a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat,renameat2 -F auid>=1000 -F auid!=-1 -k delete
+
+## Execution as another identity (CIS 6.2.3.2).
+-a always,exit -F arch=b64 -S execve -C uid!=euid -F auid!=-1 -k execpriv
+-a always,exit -F arch=b64 -S execve -C gid!=egid -F auid!=-1 -k execpriv
+-a always,exit -F arch=b32 -S execve -C uid!=euid -F auid!=-1 -k execpriv
+-a always,exit -F arch=b32 -S execve -C gid!=egid -F auid!=-1 -k execpriv
+
+## Privileged command execution (CIS 6.2.3.15).
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=-1 -k actions
+-a always,exit -F arch=b32 -S execve -F euid=0 -F auid>=1000 -F auid!=-1 -k actions
+
+## Mandatory access control changes (CIS 6.2.3.4).
+-w /etc/apparmor/ -p wa -k MAC
+-w /etc/apparmor.d/ -p wa -k MAC
+
+## The network environment (CIS 6.2.3.5).
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/network/ -p wa -k system-locale
+-w /etc/nftables.conf -p wa -k system-locale
+-w /etc/nftables.d/ -p wa -k system-locale
+
+## Package management and boot configuration.
+-w /etc/apt/ -p wa -k apt
+-w /etc/default/grub -p wa -k boot
+-w /etc/modprobe.d/ -p wa -k modules
+-w /etc/systemd/system/ -p wa -k systemd
+
+## The audit trail itself (CIS 6.2.3.1).
+-w /var/log/audit/ -p wa -k auditlog

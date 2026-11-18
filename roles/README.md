@@ -1,0 +1,39 @@
+# Role catalog
+
+One role per concern of the **machine base**. A role carries no README of its
+own; its contract is its variables and its `meta/argument_specs.yml`.
+
+The product is the base machine: a freshly installed Debian becomes a
+hardened, identified, network-configured host. Services are **not** part of this
+product; a site that declares them assembles them from its own roles.
+
+| Role | Purpose | Key variables |
+|---|---|---|
+| `common` | The Debian server baseline: the packages every host needs, the configuration directory and the periodic security upgrades. No MTA. | `common_packages`, `common_absent_packages`, `common_unattended_origins` |
+| `accounts` | The one account of a driven machine: the human operator, who escalates with a password. No root-equivalent automation account exists, and no account holds `NOPASSWD`. | `accounts_human`, `accounts_expire_bootstrap_password` |
+| `identity` | Name the product on the machine (`os-release` kept by `dpkg-divert`, `issue`, `issue.net`, and the one-line `/etc/motd` footer), optionally set the host name, and assert a real machine identity (no cloned image). | `identity_product`, `identity_name`, `identity_hostname`, `identity_access_warning`, `identity_access_footer` |
+| `journald` | Bound the systemd journal by size and retention with a drop-in. | `journald_system_max_use`, `journald_max_retention_sec` |
+| `keyboard` | The console keyboard and its default, French by default; the same layout is compiled for GRUB, which runs before the kernel and cannot read `/etc/default/keyboard`, and a keymap the current variant no longer names is removed. The console font is re-applied after `fbcon` takes over the new framebuffer; the ordering waits on `systemd-udev-settle.service`, because Debian does not tag DRM devices with `systemd`. Debian's inert `/etc/vconsole.conf` is removed now and at boot: `console-setup` owns the console. | `keyboard_model`, `keyboard_layout`, `keyboard_variant` |
+| `security` | nftables `input` default-deny loaded from a validated drop-in that fails closed (a failsafe drop table survives a broken site or product file), a declared `forward` hook for what the host routes, sshd hardened (the same port as the firewall, an RSA floor and no compression), service scoping by port or protocol with a written reason, and the password/lockout policy. With `podman_enabled`, it also accepts the engine's `tap*`/`podman*` forward links; a published port stays a site service. | `security_ssh_sources`, `security_ssh_port`, `security_sshd_allow_groups`, `security_extra_services`, `security_extra_protocols`, `security_forward_policy`, `security_forward_flows` |
+| `network` | The host's wired link, owned by `systemd-networkd`. A machine that still runs NetworkManager is refused, and so is a wireless interface (`wl*`). `network_apply: verify` reads without ever moving the link; `manage` performs the hand-over from a console. | `network_apply`, `network_mode`, `network_address`, `network_prefix`, `network_gateway`, `network_dns`, `network_domain` |
+| `resolver` | The host's stub resolver, owned by `systemd-resolved`, taking the link's DNS and re-applying the link's declared search and route-only domains through `resolvectl`, without moving the link. | `resolver_fallback_dns`, `resolver_dnssec` |
+| `time` | One owner of the clock and the zone: `systemd-timesyncd` on clients, `chrony` where a host serves NTP, and `time_timezone` applied with `timedatectl`. | `time_serve`, `time_subnet`, `time_servers`, `time_timezone` |
+| `hardening` | sysctls (including every-interface anti-spoofing, io_uring off, a declared IPv4-only policy and the forwarding switch a routing host declares), the blocked and blacklisted module lists, auditd rules, the vendor microcode and its early initramfs load, mount and resource limits, the disk monitor's self-test schedule (opt-in: `hardening_smartd_manage`), the kernel command line, the boot menu's product title and the server target. | `hardening_io_uring_disabled`, `hardening_ip_forward`, `hardening_ipv6_disabled`, `hardening_microcode`, `hardening_modules_blocked`, `hardening_sysrq`, `hardening_smartd_manage` |
+| `performance` | The declared VM, I/O and TCP tuning, THP, the CPU governor (skipped on a VM) and the D-Bus provider: `dbus-broker`, selected by overriding `dbus.service`, effective at the next boot. The swap's size is the site's day-0 decision; only its kind is declared. The congestion control is left to the kernel unless a site chooses one. | `performance_swappiness`, `performance_swap_kind`, `performance_tcp_congestion_control`, `performance_dbus_provider` |
+| `shell` | The shell a login meets: the umask a session really applies (`pam_umask` rewrites Debian's), the history's size and its ignores, the locale (`C.UTF-8`, messages in French, generated when absent), the editor and pager, an `ls` that groups directories and sorts by date, and the login dashboard (`/etc/update-motd.d/`) that runs on the console and over SSH. | `shell_umask`, `shell_hist_size`, `shell_ls_options`, `shell_lang`, `shell_locale_generate`, `shell_motd_mounts`, `shell_motd_color` |
+| `audit` | **Read-only, not part of `site.yml`.** Measures the declared state on a converged host — sshd, PAM, pwquality, sysctl, nftables, auditd, microcode, IPv6, the product manifest, account groups, backup timer, reboot flag — and writes one JSON report with `id`, `expected`, `observed`, `result`. | `audit_report_dir`, `audit_fail_on_deviation`, `audit_human_user`, `audit_expected_microcode`, `audit_expected_ipv6_disabled` |
+| `crypto` | The declared cryptographic policy: the SSH algorithm lists (no SHA-1, no CBC, post-quantum kex first) and the system-wide OpenSSL TLS policy, written as a drop-in under `/etc/ssl/openssl.cnf.d/`, with one literal `.include` line ensured at the head of Debian's `openssl.cnf` — the conffile is never replaced, and the line is what activates the drop-in. Asserts the negotiation with `sshd -T`. | `crypto_sshd_ciphers`, `crypto_sshd_macs`, `crypto_openssl_policy` |
+| `backup` | A local encrypted `restic` repository under `/var/backups`, driven by a systemd timer, with retention and a weekly integrity check. The local repository is not a defence against losing the disk: the off-site copy is the site's. | `backup_repo`, `backup_restic_password`, `backup_paths` |
+| `integrity` | A SHA-256 baseline of the files this product creates outside a package (`/etc/server`, `server-*` scripts, unit drop-ins), verified by the read-only audit. | `integrity_paths`, `integrity_manifest_file` |
+| `podman` | Optional rootless Podman engine: packages, registry search path, user socket, linger and subordinate IDs. The `security` role accepts the engine's `tap*`/`podman*` forward links; a published port is declared by the site. No container is created or started, and the rootful socket stays off. | `podman_enabled`, `podman_user`, `podman_registries` |
+
+Three rules hold across the catalog:
+
+- **A role default is correct on any machine.** A role that cannot work without a
+  value declares it and fails loudly when it is empty, rather than inventing one.
+- **A second run changes nothing.** A converge that finds its state applied
+  reports no change.
+- **A dry run writes nothing.** A `--check` run may report a change; it may never
+  make one. The `backup` role's repository password is the case that taught it: a
+  `copy` writes in check mode too, so a dry run with a stale password replaced the
+  live one and made every snapshot unreadable.

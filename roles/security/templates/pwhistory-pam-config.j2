@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# A pam-auth-update profile, so Debian's own generator owns common-password and
+# this role owns one line of policy: five remembered hashes, root included.
+Name: Server password history
+Default: yes
+Priority: 1024
+Password-Type: Primary
+Password:
+    requisite pam_pwhistory.so remember=5 use_authtok enforce_for_root

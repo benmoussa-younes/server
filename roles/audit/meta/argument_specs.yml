@@ -1,0 +1,112 @@
+---
+argument_specs:
+  main:
+    short_description: Read-only controls, one report per host.
+    description: >-
+      Measures the declared state of a converged base machine and writes one
+      JSON report with an identifier, the expected value, the observed value and
+      a pass/fail result per control. It never writes a setting.
+    options:
+      audit_report_dir:
+        type: str
+        required: false
+        description: Directory of the JSON report on the audited host.
+      audit_report_dir_mode:
+        type: str
+        required: false
+        description: Mode of the report directory; the report maps the host.
+      audit_report_dir_group:
+        type: str
+        required: false
+        description: Group allowed to read the report (Debian's `adm`).
+      audit_report_file_mode:
+        type: str
+        required: false
+        description: Mode of the JSON report.
+      audit_report_file_group:
+        type: str
+        required: false
+        description: Group allowed to read the JSON report.
+      audit_report_file:
+        type: str
+        required: false
+        description: Path of the JSON report on the audited host.
+      audit_human_user:
+        type: str
+        required: false
+        description: The human account whose groups are checked; empty skips it.
+      audit_fail_on_deviation:
+        type: bool
+        required: false
+        description: Fail the play when at least one control fails.
+      audit_expected_ssh_port:
+        type: int
+        required: false
+        description: The SSH port the firewall and sshd must agree on.
+      audit_sudoers_keep:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          Sudoers drop-in basenames allowed to carry NOPASSWD. Empty by default;
+          an undeclared grant fails the audit.
+      audit_forbidden_groups:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          Groups a server account must not hold: each grants a path to root
+          that the product does not declare.
+      audit_expected_timeout:
+        type: int
+        required: false
+        description: Idle seconds the login session must enforce.
+      audit_expected_inactive:
+        type: int
+        required: false
+        description: Days after which an idle account is locked, read from shadow.
+      audit_expected_umask:
+        type: str
+        required: false
+        description: The session umask declared in login.defs.
+      audit_expected_requiredrsasize:
+        type: int
+        required: false
+        description: The RSA floor sshd must report.
+      audit_expected_compression:
+        type: str
+        required: false
+        description: The compression value sshd must report.
+      audit_expected_microcode:
+        type: bool
+        required: false
+        description: Require a loaded microcode revision and the initramfs blob.
+      audit_expected_ipv6_disabled:
+        type: bool
+        required: false
+        description: The IPv6 state this host declares.
+      audit_manifest_file:
+        type: str
+        required: false
+        description: The path/SHA-256 manifest of product-owned files.
+      audit_suid_scan_exclude_fstypes:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          Filesystems the setuid census skips because nothing can execute from
+          them; the report names the skipped mounts.
+      audit_legacy_packages:
+        type: list
+        elements: str
+        required: false
+        description: Legacy client packages that must be absent.
+      audit_suid_allowlist:
+        type: list
+        elements: str
+        required: false
+        description: Setuid/setgid files allowed without a dpkg owner.
+      audit_expected_password_min_length:
+        type: int
+        required: false
+        description: The minimum password length the quality policy must enforce.

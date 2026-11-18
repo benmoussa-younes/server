@@ -1,0 +1,202 @@
+---
+- name: The human account is declared
+  # The product creates no account and names none by default: a site that forgets
+  # the name must fail here, with a sentence, before any task acts on an empty
+  # string.
+  ansible.builtin.assert:
+    that:
+      - accounts_human.name | length > 0
+    fail_msg: >-
+      accounts_human.name is empty. The product creates no account: name the
+      existing human account, usually the account named by `ansible_user`.
+
+- name: The declared password lifetime is plausible
+  ansible.builtin.assert:
+    that:
+      - >-
+        accounts_human.password_expiry | default('never') | string
+        is match('^(never|[0-9]+)$')
+    fail_msg: >-
+      accounts_human.password_expiry must be `never` or a number of days.
+
+# `append: false`: the declared list IS the list. With `append: true` a
+# privileged group the host already carried (docker, lxd, libvirt, disk) survived
+# every converge, and a converted machine kept an escalation path nobody declared.
+- name: The human account is in its declared groups
+  ansible.builtin.user:
+    name: "{{ accounts_human.name }}"
+    groups: "{{ accounts_human.groups }}"
+    append: false
+    state: present
+
+- name: The human account's groups are read back
+  ansible.builtin.command:
+    cmd: id -nG {{ accounts_human.name }}
+  register: accounts_groups_live
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: The human account's primary group is read back
+  ansible.builtin.command:
+    cmd: id -gn {{ accounts_human.name }}
+  register: accounts_primary_group
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: The human account holds no undeclared group
+  ansible.builtin.assert:
+    that:
+      - >-
+        accounts_groups_live.stdout.split()
+        is subset(accounts_human.groups
+                  + [accounts_primary_group.stdout | trim])
+    fail_msg: >-
+      {{ inventory_hostname }}: {{ accounts_human.name }} holds
+      `{{ accounts_groups_live.stdout }}`, which is not the declared list.
+  when: not ansible_check_mode
+
+# The human account is the only account, so the blanket grant it may hold lives in
+# `/etc/sudoers`; the legacy lab file would be a second, undeclared path — and this
+# is exactly the file the audit called stop-the-line.
+- name: No human account keeps an inherited blanket grant
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/sudoers.d/90-lab
+
+# --- the bootstrap password does not survive the first login ------------------
+#
+# The installer writes ONE password for the human account, the same on every
+# machine. It is a way in, not a secret the site keeps, and it must not outlive
+# the first login. The role expires it ONCE and records that it did. A site whose
+# account ALREADY holds the operator's own password sets
+# `accounts_expire_bootstrap_password: false`, and nothing is expired.
+#
+# `chage -d 0` marks the password EXPIRED: the first console or SSH login is
+# forced to choose a new one before the session opens, and the site's pwquality
+# policy (the `security` role) is what the new one must satisfy. It also clears
+# the minimum-days constraint, which would otherwise refuse a change on the very
+# day the machine was installed.
+#
+# ONCE, and only once: re-expiring on every converge would lock the operator out
+# of the password they chose -- a lockout loop, not a policy. The record of the
+# one-time act is `accounts_password_expiry_marker`, and nothing else reads it.
+- name: Whether the bootstrap password has already been expired
+  ansible.builtin.stat:
+    path: "{{ accounts_password_expiry_marker }}"
+  register: accounts_password_expiry_state
+  when: accounts_expire_bootstrap_password | bool
+
+- name: The directory the one-time record lives in exists
+  ansible.builtin.file:
+    path: "{{ accounts_password_expiry_marker | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: The bootstrap password is expired, so the first login must change it
+  ansible.builtin.command:
+    cmd: "chage -d 0 {{ accounts_human.name }}"
+  when:
+    - accounts_expire_bootstrap_password | bool
+    - not accounts_password_expiry_state.stat.exists
+  changed_when: true
+
+# The state is read from SHADOW, never from `chage -l`: that command prints
+# TRANSLATED text ("le mot de passe doit être changé" on a French host), and an
+# assertion that matches an English sentence is an assertion that fails on a
+# correct passwd entry -- measured on a converted host, where it did exactly
+# that (2026-10-10).
+# Shadow's third field is the day-count of the last change; `chage -d 0` sets it
+# to 0, which is the machine-readable form of "must be changed at the next login".
+- name: The account's password state is read (a field, not a sentence)
+  ansible.builtin.command:
+    cmd: "getent shadow {{ accounts_human.name }}"
+  register: accounts_shadow
+  changed_when: false
+  failed_when: false
+  when:
+    - accounts_expire_bootstrap_password | bool
+    - not ansible_check_mode
+    - not accounts_password_expiry_state.stat.exists
+
+# The positive control, in the run that acts: "the command ran" is not the
+# property, "the account must now change its password" is.
+- name: The bootstrap credential really cannot be kept
+  ansible.builtin.assert:
+    that:
+      - (accounts_shadow.stdout | default('') | split(':')) | length >= 3
+      - (accounts_shadow.stdout | default('') | split(':'))[2] == '0'
+    fail_msg: >-
+      {{ accounts_human.name }}'s shadow entry does not mark the password for
+      change: "{{ accounts_shadow.stdout | default('(unreadable)') }}" (the third
+      field must be 0).
+  when:
+    - accounts_expire_bootstrap_password | bool
+    - not ansible_check_mode
+    - not accounts_password_expiry_state.stat.exists
+
+- name: The one-time act is recorded
+  ansible.builtin.copy:
+    content: |
+      # Written by the `accounts` role: the human account's bootstrap password was
+      # expired here, so the first login must choose a new one. Delete this file
+      # to have the role expire the password again (a re-provision, or a reset).
+      expired_once
+    dest: "{{ accounts_password_expiry_marker }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - accounts_expire_bootstrap_password | bool
+    - not ansible_check_mode
+    - not accounts_password_expiry_state.stat.exists
+
+# --- the human account's password never expires on its own --------------------
+
+# `chage -M` is the PER-ACCOUNT setting and it wins over `/etc/login.defs`. The
+# `security` role sets the default; this task makes the account's own value
+# true, which matters on a host that already exists: a site that had 365 there
+# would otherwise keep it until someone ran `chage` by hand.
+#
+# The maximum age is SHADOW's fifth field. Reading it first is what makes
+# `changed_when` truthful: running `chage -M` unconditionally would report a
+# change on every converge, and claiming `changed_when: false` would hide a real
+# edit. The read is allowed in check mode; the write is not.
+- name: The human account's password-aging state is read
+  ansible.builtin.command:
+    cmd: "getent shadow {{ accounts_human.name }}"
+  register: accounts_shadow_aging
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: The declared maximum password age is known
+  ansible.builtin.set_fact:
+    accounts_password_max_days: >-
+      {{ 99999 if (accounts_human.password_expiry | default('never') | string == 'never')
+         else (accounts_human.password_expiry | int) }}
+
+- name: The human account's password expiry is declared
+  ansible.builtin.command:
+    cmd: "chage -M {{ accounts_password_max_days }} {{ accounts_human.name }}"
+  register: accounts_password_age
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - >-
+      (accounts_shadow_aging.stdout | default('') | split(':') | length < 5)
+      or (((accounts_shadow_aging.stdout | split(':'))[4] | int)
+          != (accounts_password_max_days | int))
+
+- name: The password expiry was accepted
+  ansible.builtin.assert:
+    that:
+      - accounts_password_age.rc | default(0) == 0
+    fail_msg: >-
+      {{ inventory_hostname }}: `chage -M` failed for {{ accounts_human.name }}
+      (rc {{ accounts_password_age.rc | default('?') }}). The value must be
+      `never` or a number of days.
+  when: not (accounts_password_age.skipped | default(false))

@@ -1,0 +1,79 @@
+---
+# Cryptography is a declared policy, not whatever the distribution ships.
+#
+# Two surfaces are owned here, and only two:
+#
+#   sshd        the algorithms a connection may negotiate. The distribution's
+#               list still offers SHA-1 MACs and the NIST curves beside the
+#               modern ones; the role declares a modern set and drops SHA-1.
+#   OpenSSL     the system-wide TLS default, through a drop-in under
+#               `openssl.cnf.d`, so Debian's file is never edited.
+#
+# NOT owned here, on purpose:
+#   - the kernel CryptoAPI (`/etc/modprobe.d`): disabling a primitive there
+#     breaks dm-crypt and IPSec, which no role of this product creates but a
+#     site may, and the failure appears at the next boot;
+#   - FIPS mode: it changes the whole library's behaviour and is a site's
+#     regulatory decision, not a default.
+
+# --- sshd --------------------------------------------------------------------
+
+# Transport. ChaCha20 first (fastest in software), then AES-GCM; no CBC, no
+# 3DES. Every entry below is offered by OpenSSH 10 on Debian (measured with
+# `ssh -Q cipher` on the target, 2026-10-20).
+crypto_sshd_ciphers:
+  - chacha20-poly1305@openssh.com
+  - aes256-gcm@openssh.com
+  - aes128-gcm@openssh.com
+  - aes256-ctr
+
+# Integrity. Encrypt-then-MAC only, SHA-2 or UMAC; SHA-1 and MD5 are gone.
+crypto_sshd_macs:
+  - umac-128-etm@openssh.com
+  - hmac-sha2-512-etm@openssh.com
+  - hmac-sha2-256-etm@openssh.com
+
+# Key exchange. The post-quantum hybrids first, then the classic ones. The NIST
+# curves are accepted: they are not weak, only unfashionable, and dropping them
+# would refuse clients that do not yet implement X25519.
+crypto_sshd_kex:
+  - mlkem768x25519-sha256
+  - sntrup761x25519-sha512
+  - curve25519-sha256
+  - curve25519-sha256@libssh.org
+  - ecdh-sha2-nistp256
+  - ecdh-sha2-nistp384
+  - ecdh-sha2-nistp521
+
+# Host and user key signatures. `rsa-sha2-*` is kept: RSA with SHA-2 is sound,
+# and refusing it would break the RSA keys a site already distributed. What is
+# NOT present is `ssh-rsa`, which is RSA with SHA-1.
+crypto_sshd_hostkey_algorithms:
+  - ssh-ed25519
+  - ecdsa-sha2-nistp256
+  - ecdsa-sha2-nistp384
+  - ecdsa-sha2-nistp521
+  - rsa-sha2-512
+  - rsa-sha2-256
+
+crypto_sshd_file: /etc/ssh/sshd_config.d/50-crypto.conf
+
+# --- OpenSSL ----------------------------------------------------------------
+
+# The system-wide TLS policy, written as a drop-in that `openssl.cnf` includes.
+crypto_openssl_conf: /etc/ssl/openssl.cnf
+crypto_openssl_conf_dir: /etc/ssl/openssl.cnf.d
+# The drop-in file name. It is also the literal path the main configuration
+# includes: OpenSSL's `.include` does not expand wildcards.
+crypto_openssl_policy_file: 60-crypto-policy.cnf
+
+# `modern` = TLS 1.2 minimum, AEAD and forward-secret suites only, SHA-384/256
+# signatures. `default` = the distribution's policy, untouched.
+crypto_openssl_policy: modern
+
+crypto_openssl_min_protocol: TLSv1.2
+crypto_openssl_cipher_string: >-
+  ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256
+crypto_openssl_ciphersuites: TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
+crypto_openssl_signature_algorithms: >-
+  ECDSA+SHA384:ECDSA+SHA256:ed25519:RSA-PSS+SHA384:RSA-PSS+SHA256:RSA+SHA384:RSA+SHA256

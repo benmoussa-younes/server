@@ -1,0 +1,61 @@
+---
+# A baseline for what the product writes outside a package. It runs last in the
+# base play, after every other role has written its files, and it writes one
+# line per file: `<sha256>  <path>`, the format `sha256sum -c` reads. The audit
+# verifies it; a root attacker can rewrite both, so this detects drift, not a
+# compromised root.
+- name: The baseline directory exists
+  ansible.builtin.file:
+    path: "{{ integrity_manifest_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: The product-owned paths are inspected
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+    get_checksum: true
+    follow: false
+  loop: "{{ integrity_paths }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: integrity_paths_stat
+
+- name: A required product file is present
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isreg | default(false)
+    fail_msg: >-
+      {{ inventory_hostname }}: {{ item.item.path }} is missing or not a regular
+      file. It is a required part of this product's state; the manifest cannot
+      be built.
+  loop: "{{ integrity_paths_stat.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+  when:
+    - not ansible_check_mode
+    - not (item.item.optional | default(false))
+
+- name: The manifest lines are built
+  ansible.builtin.set_fact:
+    integrity_manifest_lines: >-
+      {{ (integrity_manifest_lines | default([]))
+         + [item.stat.checksum ~ '  ' ~ item.item.path] }}
+  loop: "{{ integrity_paths_stat.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+  when:
+    - item.stat.exists
+    - item.stat.checksum is defined
+
+- name: The manifest is written
+  ansible.builtin.copy:
+    content: "{{ integrity_manifest_lines | join('\n') }}\n"
+    dest: "{{ integrity_manifest_file }}"
+    owner: root
+    group: root
+    mode: "0640"
+  when: not ansible_check_mode

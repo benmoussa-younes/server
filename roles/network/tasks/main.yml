@@ -1,0 +1,381 @@
+---
+# The host owns its link through systemd-networkd.
+#
+# The switch away from ifupdown CANNOT run inside the SSH session that
+# configures it: `ifdown` removes the very address the session is connected on.
+# So it is written to a script, handed to PID 1 as a detached transient unit,
+# and the play waits for the port to answer again. A wrong declaration strands
+# the host — the detection is that wait timing out, and the rollback is in
+# `defaults/main.yml` (console only).
+
+- name: The host uses systemd
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.service_mgr == 'systemd'
+    fail_msg: "{{ inventory_hostname }} does not use systemd."
+
+# The interface is discovered from the default route, which is the link the
+# product's address lives on. A multi-NIC host pins `network_interface`.
+- name: The machine is a server, not a desktop under conversion
+  # This role configures the link a server owns. NetworkManager is not part of a
+  # server, and converting a desktop in place is not what this role does: it was
+  # tried, and the hand-over lost the machine twice (2026-10-20). A machine that
+  # still has it is refused, with the one command that removes it.
+  ansible.builtin.assert:
+    that:
+      - (ansible_facts.services.get('NetworkManager.service', {}).state
+         | default('inactive')) != 'running'
+    fail_msg: >-
+      {{ inventory_hostname }} runs NetworkManager, which this product does not
+      manage. A server has no desktop stack: disable it first, at the console,
+      then run this role again -- `systemctl disable --now NetworkManager`.
+
+- name: The interface that carries the link is known
+  ansible.builtin.set_fact:
+    network_interface_name: >-
+      {{ network_interface
+         if network_interface | length > 0
+         else (ansible_facts.default_ipv4.interface | default('')) }}
+
+- name: The interface is known
+  ansible.builtin.assert:
+    that:
+      - network_interface_name | length > 0
+    fail_msg: >-
+      {{ inventory_hostname }}: no default-route interface was found and
+      `network_interface` is not pinned.
+
+- name: The interface is wired
+  # This product owns wired servers. A wireless link is a different product
+  # decision, and half-configuring a radio here would be worse than refusing it.
+  ansible.builtin.assert:
+    that:
+      - network_interface_name is not match('^wl')
+    fail_msg: >-
+      {{ inventory_hostname }}: {{ network_interface_name }} is a wireless
+      interface. Server Edition configures wired links only; pin a wired
+      `network_interface`, or use a machine that reaches the network by cable.
+
+- name: The static case carries an address
+  ansible.builtin.assert:
+    that:
+      - network_address | length > 0
+      - network_prefix | length > 0
+    fail_msg: >-
+      {{ inventory_hostname }} is `static` and must declare `network_address`
+      and `network_prefix`.
+  when: network_mode == 'static'
+
+- name: The networkd directory exists
+  ansible.builtin.file:
+    path: "{{ network_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The link is declared to systemd-networkd
+  ansible.builtin.template:
+    src: 10-server.network.j2
+    dest: "{{ network_dir }}/{{ network_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: network_declaration
+
+- name: The switch script is in place
+  ansible.builtin.template:
+    src: server-network-switch.j2
+    dest: "{{ network_switch_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+# `allow-hotplug` would have udev (80-ifupdown.rules) run `ifup` on the NIC and
+# fight networkd for it, even with `networking.service` disabled. So the live
+# file is reduced to loopback, and the installer's file is preserved once for
+# the rollback. `force: false` keeps the first copy as the reference.
+#
+# A machine that never ran ifupdown has NO `/etc/network/interfaces` — a fresh
+# Debian cloud image, for one — and there is then nothing to preserve or to
+# neutralise. Read it first: the task must not fail on an absent file (found by
+# the standalone-VM proof, 2026-10-10).
+- name: The installer's ifupdown file, if it exists, is read
+  ansible.builtin.stat:
+    path: "{{ network_interfaces_file }}"
+  register: network_interfaces_file_stat
+
+- name: The installer's ifupdown file is preserved once
+  ansible.builtin.copy:
+    src: "{{ network_interfaces_file }}"
+    dest: "{{ network_interfaces_backup }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+  when: network_interfaces_file_stat.stat.exists
+
+- name: Ifupdown no longer manages the link
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: "{{ network_interfaces_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - network_interfaces_file_stat.stat.exists
+    # The file decides what ifupdown does at the NEXT boot: rewriting it while
+    # `verify` still relies on ifupdown to carry the link would leave the host
+    # with no bring-up path after a reboot. It is part of the hand-over.
+    - network_apply == 'manage'
+
+# Before the switch, while the original is still in place: the DHCP client's
+# file is the rollback asset, and the first copy is the reference.
+- name: The installer's resolv.conf is preserved once
+  ansible.builtin.copy:
+    src: "{{ network_resolv_conf }}"
+    dest: "{{ network_resolv_conf_backup }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+
+- name: The networkd unit is enabled and running
+  # `enabled: true` alone leaves it enabled but stopped -- and a host that boots
+  # with the unit enabled but not running hands the link to whatever else is
+  # installed. It is enabled AND started here; the hand-over script does the
+  # same, and the final assertion checks the pair.
+  #
+  # `verify` never gets here: a running networkd reads the declaration this role
+  # just wrote and takes the interface, which is the hand-over itself. Networkd
+  # also re-reads a changed `.network` file on its own, so starting it is the
+  # move, not merely a service enable.
+  ansible.builtin.systemd_service:
+    name: systemd-networkd.service
+    enabled: true
+    state: started
+  when: network_apply == 'manage'
+
+- name: The wait-for-online unit is enabled
+  ansible.builtin.systemd_service:
+    name: systemd-networkd-wait-online.service
+    enabled: true
+  when:
+    - network_apply == 'manage'
+    - network_wait_online
+
+- name: The service states are known
+  ansible.builtin.service_facts:
+
+- name: The link must change hands
+  # Three conditions, and the third was missing until it was measured on a
+  # converted machine (2026-10-20): a host where networkd ALREADY ran and
+  # NetworkManager still owned the interface kept both, and the address moved
+  # back and forth between two managers. A manager that is merely present has
+  # to be retired even when networkd is already up.
+  ansible.builtin.set_fact:
+    network_switch_needed: >-
+      {{ (ansible_facts.services.get('systemd-networkd.service', {}).state
+          | default('')) != 'running'
+         or (ansible_facts.services.get('networking.service', {}).state
+             | default('')) == 'running'
+         }}
+
+# `--no-block` is essential: with a oneshot unit, `systemd-run` would otherwise
+# wait for the command to finish — across the address drop that kills the
+# session. It returns after enqueuing; PID 1 finishes the job.
+- name: The switch runs, detached from the SSH session
+  ansible.builtin.command:
+    cmd: >-
+      systemd-run --unit={{ network_switch_unit }} --collect --no-block
+      --property=Type=oneshot {{ network_switch_script }}
+  when:
+    - network_apply == 'manage'
+    - network_switch_needed | bool
+  changed_when: true
+
+- name: The host answers again
+  ansible.builtin.wait_for_connection:
+    delay: 3
+    timeout: 120
+    connect_timeout: 5
+  when:
+    - network_apply == 'manage'
+    - network_switch_needed | bool
+
+- name: The service states are known after the switch
+  ansible.builtin.service_facts:
+  when:
+    - network_apply == 'manage'
+    - network_switch_needed | bool
+    - not ansible_check_mode
+
+
+# On the first run, networkd starts with the declaration already on disk. On a
+# later run, a changed declaration must be re-read, or it would only take effect
+# at the next boot.
+#
+# `reload` AND `reconfigure`: measured on a converted host (2026-10-07), a changed
+# declaration followed only by `networkctl reconfigure` leaves the OLD link
+# configuration in force -- the file on disk carries the new `DNS=`, while
+# networkd and the stub resolver still answer with the previous servers. The
+# reconfigure re-applies what networkd has LOADED; the reload is what makes it
+# read the file.
+#
+# The condition covers both a declaration that just changed and one that is
+# STALE: the file is the intent, what the resolver uses is the fact, and a link
+# left behind (an interrupted run, a manual edit) must converge rather than wait
+# for the next boot.
+- name: Read the servers the link is actually using
+  ansible.builtin.command:
+    cmd: "resolvectl dns {{ network_interface_name }}"
+  register: network_link_dns
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when:
+    - not network_switch_needed | bool
+    - network_dns | length > 0
+
+# The link's ACTUAL resolvers, as a set of addresses.
+#
+# WHY A SET, AND NOT THE RENDERED TEXT: `resolvectl` WRAPS its answer at the
+# terminal width -- the product's three servers come back as one line plus an
+# indented continuation (measured 2026-10-10). Comparing the declaration, joined
+# into ONE string, against that rendering could therefore never match once it
+# wrapped, so the role re-read and re-applied the link on **every** converge and
+# reported `changed` while doing it. That made `changed=0` unachievable on the
+# lab -- and a real drift would have hidden inside it. The wrap width is not the
+# product's business: the SET of servers is.
+#
+# The order is deliberately NOT compared: a reordered list is the same set of
+# resolvers, and a spurious `changed` is the defect being fixed here.
+- name: The servers it is using are read as a set
+  ansible.builtin.set_fact:
+    network_link_dns_servers: >-
+      {{ network_link_dns.stdout | default('')
+         | regex_findall(network_link_dns_pattern) | sort }}
+  when:
+    - not network_switch_needed | bool
+    - network_dns | length > 0
+
+- name: A changed or stale link declaration is re-read
+  # The reload is what makes networkd read the file (the reconfigure alone
+  # re-applies what it has LOADED -- measured). It reports no change of its own:
+  # the reconfigure below is the visible act.
+  ansible.builtin.command:
+    cmd: networkctl reload
+  when:
+    - network_apply == 'manage'
+    - not network_switch_needed | bool
+    - not ansible_check_mode
+    - network_dns | length > 0
+    - >-
+      network_declaration.changed
+      or (network_dns | sort != (network_link_dns_servers | default([])))
+  changed_when: false
+
+- name: A changed or stale link declaration is applied now
+  ansible.builtin.command:
+    cmd: "networkctl reconfigure {{ network_interface_name }}"
+  when:
+    - network_apply == 'manage'
+    - not network_switch_needed | bool
+    - not ansible_check_mode
+    - network_dns | length > 0
+    - >-
+      network_declaration.changed
+      or (network_dns | sort != (network_link_dns_servers | default([])))
+  changed_when: true
+
+# Stopping ifupdown killed the DHCP client that wrote /etc/resolv.conf, and
+# systemd-resolved is not installed yet. Write the link's declared servers here,
+# so the host resolves and the resolver can be installed at all. Once the
+# resolver owns the file (a symlink), this stops touching it.
+- name: Whether the resolver already owns resolv.conf
+  ansible.builtin.stat:
+    path: "{{ network_resolv_conf }}"
+  register: network_resolv_conf_state
+
+- name: The link's declared servers answer until the resolver is installed
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible until systemd-resolved owns this file.
+      # The link's declared servers, so the host is never left without DNS.
+      {% for ns in network_dns %}nameserver {{ ns }}
+      {% endfor %}
+    dest: "{{ network_resolv_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    # Name resolution is part of what carries the session: `verify` reads, it
+    # does not rewrite the file the host resolves with.
+    - network_apply == 'manage'
+    - network_dns | length > 0
+    - not network_resolv_conf_state.stat.islnk
+
+# --- the winner owns the link, at the NEXT boot too --------------------------
+#
+# A hand-over that only works until the next reboot is not a hand-over. Measured
+# on a converted machine (2026-10-20): networkd was `active` but `disabled`, and
+# NetworkManager `active` AND `enabled` -- so a reboot would have restored the
+# manager this role had just retired, with two addresses again.
+#
+# The assertion names the PAIR, because being enabled without running, or
+# running without being enabled, are both the same defect at the next boot.
+- name: The link managers are known after the converge
+  ansible.builtin.service_facts:
+  when: not ansible_check_mode
+
+- name: The manager this role chose is the only one left
+  ansible.builtin.assert:
+    that:
+      - >-
+        ansible_facts.services.get('systemd-networkd.service', {}).state
+        | default('') == 'running'
+      - >-
+        ansible_facts.services.get('systemd-networkd.service', {}).status
+        | default('') in ['enabled', 'enabled-runtime']
+      - >-
+        ansible_facts.services.get('NetworkManager.service', {}).state
+        | default('inactive') != 'running'
+    fail_msg: >-
+      {{ inventory_hostname }}: the link has more than one owner, or its owner
+      would not start at the next boot. systemd-networkd must be enabled and
+      running, and NetworkManager disabled. Roll back from the console:
+      `systemctl enable --now NetworkManager`, then read
+      `journalctl -u systemd-networkd -u NetworkManager`.
+  when:
+    - network_apply == 'manage'
+    - not ansible_check_mode
+
+- name: The declared address is on the link
+  # The RESULT, not the mechanism: the interface carries the address the site
+  # declared, whatever brought it there. This is the assertion that would have
+  # caught every failure of this role on a converted machine -- two addresses,
+  # no address, or an address that left with the old manager.
+  ansible.builtin.command:
+    cmd: ip -4 addr show dev {{ network_interface_name }}
+  register: network_final_addr
+  changed_when: false
+  check_mode: false
+  when:
+    - not ansible_check_mode
+    - network_address | length > 0
+
+- name: The link carries exactly the declared address
+  ansible.builtin.assert:
+    that:
+      - ("inet " ~ network_address ~ "/") in network_final_addr.stdout
+      - network_final_addr.stdout | regex_findall('inet ') | length == 1
+    fail_msg: >-
+      {{ inventory_hostname }}: {{ network_interface_name }} does not carry
+      exactly {{ network_address }}/{{ network_prefix }}. It is:
+      {{ network_final_addr.stdout_lines | select('match', 'inet ') | list }}.
+      Two addresses mean two managers; none means the hand-over failed.
+  when:
+    - not ansible_check_mode
+    - network_address | length > 0

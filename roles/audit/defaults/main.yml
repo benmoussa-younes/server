@@ -1,0 +1,96 @@
+---
+# The report is written on the audited host, not on the controller: the operator
+# decides where it travels. A JSON file per run, plus a readable summary on
+# stdout.
+audit_report_dir: /var/log/server
+audit_report_file: "{{ audit_report_dir }}/audit-{{ ansible_date_time.iso8601_basic_short }}.json"
+# The report names accounts, units and paths: it is not world-readable. `adm`
+# is the group Debian gives the log readers, so the operator who reads the
+# journal reads the audit without escalating.
+audit_report_dir_mode: "0750"
+audit_report_dir_group: adm
+audit_report_file_mode: "0640"
+audit_report_file_group: adm
+
+# The human account to check, when the inventory declares one.
+audit_human_user: "{{ accounts_human.name | default('') }}"
+
+# Whether a failed control fails the play. A report is useful even when it is
+# red; an audit that always exits 0 is a log, not a gate.
+audit_fail_on_deviation: true
+
+# The values the audit expects. They mirror the product's defaults; a site that
+# changed a value declares it here too, and the report says whether the machine
+# agrees.
+audit_expected_ssh_port: 22
+audit_expected_password_min_length: 14
+audit_expected_timeout: 900
+audit_expected_inactive: 30
+audit_expected_umask: "027"
+audit_expected_requiredrsasize: 2048
+audit_expected_compression: "no"
+audit_expected_microcode: true
+audit_expected_ipv6_disabled: true
+audit_manifest_file: /var/lib/server/manifest.sha256
+
+# Mounts the setuid census skips, each because nothing can execute from it:
+# virtual filesystems, network filesystems (a census must not hang on a
+# disconnected server), and `noexec` mounts (a setuid bit there cannot run).
+# The report names the mounts actually scanned and the ones skipped.
+audit_suid_scan_exclude_fstypes:
+  - proc
+  - sysfs
+  - devtmpfs
+  - devpts
+  - cgroup
+  - cgroup2
+  - pstore
+  - securityfs
+  - debugfs
+  - tracefs
+  - configfs
+  - fusectl
+  - mqueue
+  - hugetlbfs
+  - binfmt_misc
+  - autofs
+  - bpf
+  - efivarfs
+  - nfs
+  - nfs4
+  - cifs
+  - smb3
+  - fuse
+  - squashfs
+
+# Legacy clients a base machine must not carry.
+audit_legacy_packages:
+  - rsh-client
+  - talk
+  - nis
+  - ldap-utils
+  - ftp
+  - at
+
+# Setuid/setgid files allowed to exist without a dpkg owner.
+audit_suid_allowlist: []
+
+# Sudoers drop-ins allowed to carry NOPASSWD. The product does not manage the
+# site's sudo policy; it reports an undeclared grant and fails. A site that
+# keeps `/etc/sudoers.d/admin` names it here.
+audit_sudoers_keep: []
+
+# Groups a server account must not hold: each grants a path to root that the
+# product does not declare.
+audit_forbidden_groups:
+  - docker
+  - lxd
+  - libvirt
+  - disk
+  # Desktop privileges: this product configures no desktop, so a human account
+  # holding them is a path this declaration did not create.
+  - audio
+  - video
+  - cdrom
+  - plugdev
+  - netdev

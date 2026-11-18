@@ -1,0 +1,152 @@
+---
+# The shell a person meets when they log in. On a server this is not cosmetic:
+# it decides what a file's permissions are, what the history keeps, and what an
+# operator sees first.
+#
+# Every value below was measured on Debian, not assumed. The two that matter:
+#
+#   umask    Debian's `pam_umask` is built with `-Dusergroups=true`, and it
+#            rewrites `027` to `007` for every account whose login equals its
+#            primary group -- which is every account `adduser` creates. The
+#            `UMASK 027` in `login.defs` is therefore a lie in a live session
+#            (measured: `bash -lc umask` printed `0007`). The shell sets it.
+#   motd     `pam_motd` runs with `motd=/run/motd.dynamic`, and its manual says
+#            that naming either option disables the default for both. `/etc/motd`
+#            is never read on Debian; the banner belongs in `/etc/motd.d/`.
+
+# --- the files ---------------------------------------------------------------
+
+shell_profile_dir: /etc/profile.d
+shell_env_file: /etc/profile.d/90-server-env.sh
+shell_alias_file: /etc/profile.d/91-server-aliases.sh
+
+# The interactive shell's settings also reach a NON-login shell (a new `tmux`
+# window, `su` without `-`), which reads neither `/etc/profile` nor
+# `/etc/profile.d`. Both are written, so the policy does not depend on how the
+# shell was started.
+shell_bashrc: /etc/bash.bashrc
+
+# --- what the environment declares -------------------------------------------
+
+# The umask a session really gets. 027 leaves the group (adm, backup) able to
+# read, and nobody else: 640 for a file, 750 for a directory.
+shell_umask: "027"
+
+# An idle interactive session closes itself after 15 minutes. A console left
+# open is an authenticated session anyone walking by can use; the value is
+# exported so a subshell inherits it.
+shell_timeout: 900
+
+# History enough to reconstruct an incident, not enough to keep a secret for
+# ever. Each command is recorded once, and a line starting with a space is not
+# recorded at all (`ignorespace`), which is how an operator hides one command.
+shell_hist_size: 10000
+shell_hist_file_size: 20000
+
+# `HISTIGNORE` patterns are ANCHORED and must match the whole line: `ls` does not
+# ignore `ls -la`, `ls*` does (measured). These are the commands an operator runs
+# a hundred times a day and never wants to re-read.
+shell_hist_ignore:
+  - "ls*"
+  - "ll*"
+  - "la*"
+  - "cd*"
+  - "pwd*"
+  - "exit*"
+  - "clear*"
+  - "history*"
+  - "df*"
+  - "free*"
+
+# Messages in French, everything else stable. `C.UTF-8` keeps `ls` decimal
+# points and byte collation predictable for scripts; `LC_MESSAGES` gives a
+# French speaker French errors.
+shell_lang: C.UTF-8
+shell_messages_locale: fr_FR.UTF-8
+# A minimal Debian install does not necessarily carry the site's locale. The
+# role generates it with `locale-gen` when it is absent; a site that manages its
+# own locale archive sets this false.
+shell_locale_generate: true
+
+# `/usr/sbin` and `/sbin` for a non-root login -- Debian omits them -- and always
+# at the END: a directory placed before `/usr/bin` can shadow a real command.
+shell_path_extra: ["/usr/sbin", "/sbin"]
+
+shell_editor: nano
+shell_pager: less
+shell_less_options: "-R -F -X"
+
+# --- the `ls` an operator gets ------------------------------------------------
+
+# Detail, human sizes, directories first, then both groups by date, newest
+# first, in a sortable format. `--group-directories-first` is a PRIMARY sort
+# key: it groups first and sorts each group afterwards, so it composes with `-t`
+# instead of fighting it (GNU coreutils manual; measured on Debian).
+#
+# Hidden files are NOT shown by default: on a server the home directory holds
+# `.ssh`, `.env` and `.pgpass`, and a listing that shows them to a shared screen
+# is a disclosure. `lla` shows them on purpose.
+shell_ls_options: "-lh -t --group-directories-first --time-style=long-iso --color=auto"
+shell_ls_all_options: "-lhA -t --group-directories-first --time-style=long-iso --color=auto"
+
+# --- the login dashboard -----------------------------------------------------
+
+# Debian runs `pam_motd.so motd=/run/motd.dynamic` and then a second
+# `pam_motd.so noupdate` line that still displays the DEFAULT paths:
+# `/etc/motd`, then `/etc/motd.d/`. The first line runs the scripts in
+# `/etc/update-motd.d/` and writes their output to `/run/motd.dynamic`; that is
+# where the dashboard belongs, so console and SSH logins both get it. `/etc/motd`
+# is `identity`'s one-line footer; this role owns the dynamic part only.
+#
+# Measured on the bench host (2026-10-22): `ssh -tt` showed the static banner twice
+# because both `/etc/motd` and `/etc/motd.d/00-server` existed. The old file
+# is removed below; a renamed file in `/etc/motd.d/` would still be displayed.
+shell_motd_script: /etc/update-motd.d/50-server
+shell_motd_retired_banner: /etc/motd.d/00-server
+
+# `base-files` ships `/etc/update-motd.d/10-uname`, which prints the kernel and
+# build date before the dashboard. It is a package file, so it is diverted, not
+# edited; the divert target is OUTSIDE `/etc/update-motd.d/` because everything
+# in that directory would still be executed.
+shell_motd_uname_source: /etc/update-motd.d/10-uname
+shell_motd_uname_divert: /var/lib/server/retired/10-uname
+
+# Filesystems shown by the dashboard. `/` is the only one every machine has and
+# the only one a generic default may assume; a site with separate volumes adds
+# them here.
+shell_motd_mounts:
+  - /
+
+# The dashboard's words. French is the product default; a client overrides the
+# dict to localise every label and status phrase without editing the template.
+# The padding is computed from the label length in the template, so a longer
+# translation still aligns.
+shell_motd_labels:
+  host: Hôte
+  system: Système
+  uptime: Actif depuis
+  memory: Mémoire
+  storage: Stockage
+  network: Réseau
+  updates: Mises à jour
+  units: Unités
+  load: charge
+  swap: échange
+  gateway: passerelle
+  no_global_address: aucune adresse globale
+  no_swap: aucun
+  no_updates: aucune en attente
+  updates_pending: en attente
+  updates_security: dont
+  updates_security_suffix: de sécurité
+  reboot_required: redémarrage requis
+  reboot_not_required: redémarrage non requis
+  no_failed_units: aucun échec
+  failed_units: en échec
+
+# ANSI colour. The script cannot detect a terminal: pam_motd runs it through
+# `run-parts` with only PATH and PWD in the environment (measured on
+# the bench host, 2026-10-22: no TERM, no TTY), so `NO_COLOR` and `TERM=dumb` never
+# reach it. This variable is the switch; set it false for a serial console that
+# does not understand ANSI.
+shell_motd_color: true

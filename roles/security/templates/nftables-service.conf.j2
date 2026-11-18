@@ -1,0 +1,35 @@
+# {{ ansible_managed }}
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The distribution's nftables.service runs one `nft -f /etc/nftables.conf`.
+# This drop-in replaces that command list and makes a failure FAIL CLOSED:
+#
+#   1. load the failsafe drop table first, so the host is filtered even if a
+#      validation fails;
+#   2. validate both files with `nft -c -f` before touching the live ruleset;
+#   3. load the site's file (it carries `flush ruleset` on Debian, which wipes
+#      the first failsafe), then the failsafe again, then the product table;
+#   4. remove the failsafe only after both loaded;
+#   5. reload the failsafe on every stop or failed start.
+#
+# `systemctl reload nftables` follows the same sequence: the distribution's
+# `ExecReload` loads only the site file and would leave the permissive table
+# alone, so it is replaced too.
+[Service]
+ExecStart=
+ExecStartPre=/usr/sbin/nft -f {{ security_nftables_failsafe_file }}
+ExecStartPre=/usr/sbin/nft -c -f /etc/nftables.conf
+ExecStartPre=/usr/sbin/nft -c -f {{ security_nftables_file }}
+ExecStart=/usr/sbin/nft -f /etc/nftables.conf
+ExecStart=/usr/sbin/nft -f {{ security_nftables_failsafe_file }}
+ExecStart=/usr/sbin/nft -f {{ security_nftables_file }}
+ExecStartPost=/usr/sbin/nft -f {{ security_nftables_failsafe_remove_file }}
+ExecStopPost=/usr/sbin/nft -f {{ security_nftables_failsafe_file }}
+ExecReload=
+ExecReload=/usr/sbin/nft -f {{ security_nftables_failsafe_file }}
+ExecReload=/usr/sbin/nft -c -f /etc/nftables.conf
+ExecReload=/usr/sbin/nft -c -f {{ security_nftables_file }}
+ExecReload=/usr/sbin/nft -f /etc/nftables.conf
+ExecReload=/usr/sbin/nft -f {{ security_nftables_failsafe_file }}
+ExecReload=/usr/sbin/nft -f {{ security_nftables_file }}
+ExecReload=/usr/sbin/nft -f {{ security_nftables_failsafe_remove_file }}

@@ -1,0 +1,28 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# FAIL CLOSED. This table is loaded by the first `ExecStartPre` of the nftables
+# unit, before either ruleset is validated, and by `ExecStopPost` on every stop
+# or failed start. A site or product file that does not parse therefore leaves
+# the host DROPPING inbound traffic, never running the distribution's permissive
+# `inet filter` alone. `ExecStartPost` removes it after a successful start.
+#
+# The drop is counted so the console shows whether it is the failsafe or a
+# normal stop. Recovery is a console operation: fix the broken file, then
+# `systemctl restart nftables`, or `nft delete table inet {{ security_nftables_failsafe_table }}`
+# if the unit is deliberately being kept stopped.
+table inet {{ security_nftables_failsafe_table }} {}
+delete table inet {{ security_nftables_failsafe_table }}
+
+table inet {{ security_nftables_failsafe_table }} {
+    chain input {
+        type filter hook input priority -1000; policy drop;
+        counter drop
+    }
+
+    chain forward {
+        type filter hook forward priority -1000; policy drop;
+        counter drop
+    }
+}

@@ -1,0 +1,61 @@
+---
+# The machine base, on every machine this product owns.
+#
+# Thin: it only assembles the roles, in the order they must apply. The network
+# switch is detached from the session, so every role that writes to the machine
+# must already have what it needs before `network` runs.
+- name: The machine base
+  hosts: "{{ target | default('all') }}"
+  become: true
+  # No pre-task touches NetworkManager. It was tried (2026-10-20) and it cut the
+  # only link the machine had before the alternative was proved: the host was
+  # lost on both its addresses. The `network` role now REFUSES a host that still
+  # runs it; the operator disables it once, at the console, before the run.
+  roles:
+    - role: common
+      tags: [common]
+    - role: accounts
+      tags: [accounts]
+    - role: identity
+      tags: [identity]
+    - role: journald
+      tags: [journald]
+    - role: keyboard
+      tags: [keyboard]
+    # The shell comes after `identity` (its banner) and `accounts` (whose
+    # account it reads back): it declares what a login meets.
+    - role: shell
+      tags: [shell]
+    - role: hardening
+      tags: [hardening]
+    - role: performance
+      tags: [performance]
+    - role: network
+      tags: [network]
+    - role: resolver
+      tags: [resolver]
+    - role: time
+      tags: [time]
+    # `security` runs after `network`, whose hand-over must finish before the
+    # firewall is replaced, and after `time`, which appends its NTP port to
+    # `security_extra_services`. `resolver` sits before it so the stub is
+    # declared when the firewall closes. In `verify` mode the hand-over is a
+    # read and this role runs immediately.
+    - role: security
+      tags: [security]
+    # The cryptographic policy comes LAST among the sshd writers: `security`
+    # declares the policy, this role declares the algorithms, and its
+    # `sshd -T` assertion must see every drop-in in place.
+    - role: crypto
+      tags: [crypto]
+    - role: backup
+      tags: [backup]
+    # The rootless container engine is optional and inert by default; it never
+    # starts a container. It runs before the integrity baseline so its optional
+    # configuration files are in the manifest when it is enabled.
+    - role: podman
+      tags: [podman]
+    # The integrity baseline comes last: it records what every role above wrote
+    # outside a package, and the read-only audit verifies it afterwards.
+    - role: integrity
+      tags: [integrity]

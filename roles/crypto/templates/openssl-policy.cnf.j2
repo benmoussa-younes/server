@@ -1,0 +1,30 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The system-wide TLS policy. Loaded from `openssl.cnf` by a LITERAL `.include`
+# at its first line, so Debian's file keeps its own content and this one states
+# the product's minimum. Every OpenSSL client on the host inherits it: curl, apt
+# over https, Python, the VPN tools.
+#
+# OpenSSL does not expand wildcards in `.include`: a pattern is accepted and
+# silently includes NOTHING. This policy was inert on every host for that reason
+# until 2026-10-26; the `crypto` role now names this file and asserts the effect
+# (the suites `openssl ciphers -s -tls1_2` returns must be exactly the ones
+# declared below).
+#
+# What it refuses: TLS below 1.2, and suites without forward secrecy or an AEAD.
+# What it keeps: RSA signatures with SHA-2 (sound, and every certificate in use
+# has them), and the NIST curves.
+openssl_conf = openssl_init
+
+[openssl_init]
+ssl_conf = ssl_sect
+
+[ssl_sect]
+system_default = crypto_policy
+
+[crypto_policy]
+MinProtocol = {{ crypto_openssl_min_protocol }}
+CipherString = {{ crypto_openssl_cipher_string }}
+Ciphersuites = {{ crypto_openssl_ciphersuites }}
+SignatureAlgorithms = {{ crypto_openssl_signature_algorithms }}

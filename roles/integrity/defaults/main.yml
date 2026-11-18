@@ -1,0 +1,73 @@
+---
+# The files this product creates outside a package. `dpkg --verify` sees a
+# changed conffile and says nothing about these; the audit verifies this
+# manifest, so editing `/etc/server`, a `server-*` script or a unit
+# drop-in by hand is detected on the next run.
+#
+# A path is OPTIONAL when a valid machine may not have it: GRUB's keymap when
+# the layout is empty, the one-time password marker after it was not used. A required path that is
+# missing fails the role: the manifest would otherwise be a shorter lie.
+integrity_paths:
+  # hardening
+  - { path: "{{ hardening_sysctl_file }}" }
+  - { path: /etc/modprobe.d/60-hardening.conf }
+  - { path: "{{ hardening_audit_rules_file }}" }
+  - { path: "{{ hardening_needrestart_conf }}" }
+  - { path: "{{ hardening_limits_file }}" }
+  - { path: "{{ hardening_system_limits_file }}" }
+  - { path: "{{ hardening_tmp_mount_dropin }}", optional: true }
+  - { path: "{{ hardening_reboot_check_script }}" }
+  - { path: /etc/systemd/system/server-reboot-check.service }
+  - { path: /etc/systemd/system/server-reboot-check.timer }
+  - { path: /etc/systemd/coredump.conf.d/50-server.conf }
+  # performance
+  - { path: "{{ performance_sysctl_file }}" }
+  - { path: "{{ performance_network_sysctl_file }}" }
+  - { path: "{{ performance_modules_load_file }}", optional: true }
+  - { path: "{{ performance_tmpfiles_file }}" }
+  # security
+  - { path: "{{ security_nftables_file }}" }
+  - { path: "{{ security_nftables_failsafe_file }}" }
+  - { path: "{{ security_nftables_failsafe_remove_file }}" }
+  - { path: "{{ security_nftables_service_dropin }}" }
+  - { path: /etc/ssh/sshd_config.d/60-security.conf }
+  - { path: /usr/share/pam-configs/server-faillock }
+  - { path: /usr/share/pam-configs/server-faillock-preauth }
+  - { path: /usr/share/pam-configs/server-pwhistory }
+  # crypto
+  - { path: "{{ crypto_sshd_file }}" }
+  - { path: "{{ crypto_openssl_conf_dir }}/{{ crypto_openssl_policy_file }}", optional: true }
+  # journald, resolver
+  - { path: "{{ journald_dropin_dir }}/{{ journald_dropin_name }}" }
+  - { path: "{{ resolver_dropin }}" }
+  # network
+  - { path: "{{ network_dir }}/{{ network_file }}" }
+  - { path: "{{ network_switch_script }}" }
+  # shell
+  - { path: "{{ shell_env_file }}" }
+  - { path: "{{ shell_alias_file }}" }
+  - { path: "{{ shell_motd_script }}" }
+  - { path: "{{ shell_motd_uname_divert }}", optional: true }
+  # common
+  - { path: /etc/profile.d/10-server-editor.sh }
+  # keyboard
+  - { path: "{{ keyboard_console_setup_dropin }}" }
+  - { path: "{{ keyboard_vconsole_remove_service }}" }
+  - { path: "{{ keyboard_grub_script }}", optional: true }
+  - { path: "{{ keyboard_grub_keymap }}", optional: true }
+  # backup
+  - { path: "{{ backup_password_file }}" }
+  - { path: "{{ backup_backup_script }}" }
+  - { path: "{{ backup_check_script }}" }
+  - { path: /etc/systemd/system/server-backup.service }
+  - { path: /etc/systemd/system/server-backup.timer }
+  - { path: /etc/systemd/system/server-backup-check.service }
+  - { path: /etc/systemd/system/server-backup-check.timer }
+  # accounts
+  - { path: "{{ accounts_password_expiry_marker }}", optional: true }
+  # podman (optional: absent when podman_enabled is false)
+  - { path: /etc/containers/registries.conf.d/99-podman.conf, optional: true }
+  - { path: /etc/containers/containers.conf.d/99-podman.conf, optional: true }
+
+integrity_manifest_file: /var/lib/server/manifest.sha256
+integrity_manifest_dir: /var/lib/server

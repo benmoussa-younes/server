@@ -1,0 +1,54 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Interactive shell only: aliases have no effect in a script, and defining them
+# there would be a trap for whoever reads the file next.
+#
+# The test is not `$-` alone. A login over SSH can reach bash with `hBc` -- no
+# `i` -- and a TTY test is not enough either: the output of a remote command is
+# a pipe, so `[ -t 1 ]` is false for a session that is interactive (measured on
+# a converted machine, 2026-10-20: `type -t ls` answered `file`).
+#
+# `-c` is the reliable signal: a script is invoked as `bash -c '...'`, while a
+# session -- login or not -- is not. The aliases are therefore defined for any
+# interactive-or-session shell, and stay out of scripts.
+[ -n "${BASH_VERSION-}" ] || return 0
+case $- in
+*i*) ;;
+*-c*) return 0 ;;
+esac
+
+# `ls` is a FUNCTION, not an alias: an alias cannot carry arguments, and the
+# manual says functions are preferable for almost every purpose.
+#
+# Directories first, then files, each group by date, newest first. `-A` is not
+# used: `.ssh`, `.env` and `.pgpass` are not shown to whoever is looking at the
+# screen. `lla` shows them on purpose.
+ls() { command ls {{ shell_ls_options }} "$@"; }
+lla() { command ls {{ shell_ls_all_options }} "$@"; }
+
+# Short forms, for the moment one knows what one is looking for.
+l() { command ls -l "$@"; }
+la() { command ls -lA "$@"; }
+lt() { command ls {{ shell_ls_options }} "$@"; }
+
+# Readable sizes and a colour that never reaches a pipe (`auto`).
+alias grep='grep --color=auto'
+alias egrep='grep -E --color=auto'
+alias fgrep='grep -F --color=auto'
+alias df='df -h'
+alias du='du -h'
+alias free='free -h'
+
+# Listening ports. Without root the process column is empty: `sudo` is needed.
+alias ports='ss -tulpn'
+alias ipa='ip -br -c a'
+alias jctl='journalctl -xe'
+alias sctl='systemctl'
+
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+
+# No alias on `rm`, `cp`, `mv`, `ln`, `chmod`: an interactive `-i` gives a false
+# sense of safety (`-f` wins, and no script ever sees it). `rm -I` is the habit.

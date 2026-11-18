@@ -1,0 +1,124 @@
+---
+argument_specs:
+  main:
+    short_description: The shell environment and the tools a login gets.
+    description:
+      - >-
+        Declares the umask a session really applies (Debian's `pam_umask`
+        rewrites it), the history's size and what it ignores, the locale, the
+        editor and pager, an `ls` that shows directories first and files by
+        date, and the login dashboard Debian's `pam_motd` runs from
+        `/etc/update-motd.d/` on the console and over SSH alike.
+    author: Younes BENMOUSSA
+    options:
+      shell_timeout:
+        type: int
+        required: false
+        description: Idle seconds before an interactive login session closes.
+      shell_umask:
+        type: str
+        required: false
+        description: The umask a login shell applies.
+      shell_hist_size:
+        type: int
+        required: false
+        description: Commands kept in memory.
+      shell_hist_ignore:
+        type: list
+        elements: str
+        required: false
+        description: Anchored patterns never written to the history.
+      shell_lang:
+        type: str
+        required: false
+        description: The locale that keeps scripts predictable.
+      shell_messages_locale:
+        type: str
+        required: false
+        description: The locale used for messages only.
+      shell_locale_generate:
+        type: bool
+        required: false
+        description: >-
+          Generate `shell_messages_locale` with `locale-gen` when it is absent.
+          A site that manages its own locale archive sets it false.
+      shell_ls_options:
+        type: str
+        required: false
+        description: The options of the `ls` function.
+      shell_ls_all_options:
+        type: str
+        required: false
+        description: The options of `lla`, which shows hidden files.
+      shell_motd_script:
+        type: str
+        required: false
+        description: The dashboard `pam_motd` runs at every interactive login.
+      shell_motd_retired_banner:
+        type: str
+        required: false
+        description: The role's old static banner, removed when the dashboard takes over.
+      shell_motd_uname_source:
+        type: str
+        required: false
+        description: The distribution's kernel line, diverted out of the login display.
+      shell_motd_uname_divert:
+        type: str
+        required: false
+        description: Where the distribution's kernel line is preserved.
+      shell_motd_mounts:
+        type: list
+        elements: str
+        required: false
+        description: The filesystems the dashboard reports.
+      shell_motd_labels:
+        type: dict
+        required: false
+        description: >-
+          The dashboard's labels and status phrases. The default dict is French;
+          a client overrides it to localise the display. Every key in
+          `defaults/main.yml` must be present.
+      shell_motd_color:
+        type: bool
+        required: false
+        description: >-
+          Whether the dashboard emits ANSI colour. There is no terminal to
+          detect: pam_motd runs the script with no TERM, so a serial console
+          sets this false.
+      shell_editor:
+        type: str
+        required: false
+        description: The editor every tool reads from EDITOR.
+      shell_profile_dir:
+        type: str
+        required: false
+        description: The directory `/etc/profile` sources.
+      shell_env_file:
+        type: str
+        required: false
+        description: The login environment declaration.
+      shell_alias_file:
+        type: str
+        required: false
+        description: The interactive aliases and functions.
+      shell_bashrc:
+        type: str
+        required: false
+        description: The file a non-login interactive shell reads.
+      shell_hist_file_size:
+        type: int
+        required: false
+        description: The maximum history file size.
+      shell_path_extra:
+        type: list
+        elements: str
+        required: false
+        description: Directories appended to a non-root login's PATH.
+      shell_pager:
+        type: str
+        required: false
+        description: The pager every tool reads from PAGER.
+      shell_less_options:
+        type: str
+        required: false
+        description: The options less receives.

@@ -1,0 +1,33 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[Unit]
+Description=Signal a required reboot (new kernel installed)
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart={{ hardening_reboot_check_script }}
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/run
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027

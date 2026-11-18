@@ -1,0 +1,18 @@
+---
+# The shape of a site vault, for reference only. Never encrypt this file, never
+# use it by a run: the real file is `vault.yml` beside it, encrypted with
+# `ansible-vault` and committed as ciphertext.
+#
+# Create it with:
+#   cp group_vars/all/vault.yml.example group_vars/all/vault.yml
+#   # replace every CHANGEME value
+#   ansible-vault encrypt group_vars/all/vault.yml
+#
+# Run with `--ask-vault-pass` (or a password file outside this tree).
+#
+# Every name is prefixed `vault_` and is mapped onto the role variable it feeds
+# in `group_vars/all/vars.yml`, so a role never names a `vault_` variable.
+
+# The password of the local restic repository, `/var/backups/server`
+# (backup role). Losing it loses the backups: keep a copy off the machine.
+vault_backup_restic_password: "CHANGEME"

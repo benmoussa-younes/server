@@ -1,0 +1,3 @@
+---
+# Pin every collection. Never `latest`. The base uses only `ansible.builtin`.
+collections: []

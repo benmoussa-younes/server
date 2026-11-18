@@ -1,0 +1,29 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[Unit]
+Description=Server local backup (restic)
+Documentation=man:restic(1)
+After=local-fs.target
+# No OnFailure: the product ships no notification path, and an OnFailure
+# pointing at a unit that does not exist only records a second failure.
+# Restore this if the site provides its own notifier.
+
+[Service]
+Type=oneshot
+# systemd starts this unit with NO `HOME`, and `restic` puts its cache at
+# `${XDG_CACHE_HOME:-$HOME/.cache}/restic`. Without it, every run logs
+# "unable to open cache: neither $XDG_CACHE_HOME nor $HOME are defined" and
+# re-reads the whole tree instead of the changed files — measured on
+# the bench host (2026-10-22, journal of server-backup.service at 08:54:59).
+# `/root` is the conventional home of a root-only unit; the cache lands in
+# `/root/.cache/restic`, outside the repository this run writes.
+Environment=HOME=/root
+ExecStart={{ backup_backup_script }}
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+# Modest sandboxing: the script reads /etc, writes the repository under
+# /var/backups, and needs no network (the local repository is the point).
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full

@@ -1,0 +1,30 @@
+# NOTICE
+
+Server Edition is composed of several works under different licences. The SPDX
+mapping is in `REUSE.toml`; the full texts are in `LICENSES/`.
+
+## The product code
+
+Copyright 2026 Younes BENMOUSSA <younes.benmoussa@pm.me>.
+Licensed under the GNU Affero General Public License, version 3 or later
+(`AGPL-3.0-or-later`). See `LICENSE` and
+`LICENSES/AGPL-3.0-or-later.txt`.
+
+## The documentation
+
+Copyright 2026 Younes BENMOUSSA <younes.benmoussa@pm.me>.
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International
+(`CC-BY-SA-4.0`). See `LICENSES/CC-BY-SA-4.0.txt`.
+
+## The visuals
+
+The optional visual set in `assets/branding/` -- a wallpaper, a mark and a GRUB
+image -- is Copyright 2026 Younes BENMOUSSA and licensed under the same
+`AGPL-3.0-or-later` as the code. No role installs it.
+
+## Ansible and Debian
+
+Ansible is a separate work, installed by the controller. Debian is a separate
+distribution, installed on the target. Neither is redistributed by this
+collection. The product uses only `ansible.builtin`; `requirements.yml`
+declares no external collection.

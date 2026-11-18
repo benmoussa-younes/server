@@ -1,0 +1,8 @@
+---
+# The runtime contract.
+#
+# `roles` is the only plugin type this product ships, so there is nothing to
+# route yet. The floor is the version the product is written and syntax-checked
+# against: an older ansible-core refuses the tree plainly instead of failing on
+# a module it does not have.
+requires_ansible: ">=2.19.0"

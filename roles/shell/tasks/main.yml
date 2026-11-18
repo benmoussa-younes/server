@@ -1,0 +1,215 @@
+---
+- name: The profile directory exists
+  ansible.builtin.file:
+    path: "{{ shell_profile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# A minimal Debian install does not necessarily carry the site's locale. The
+# archive is the machine's, not the shell's: generate the declared locale once,
+# before the environment points at it.
+- name: The available locales are read
+  ansible.builtin.command:
+    cmd: locale -a
+  register: shell_available_locales
+  changed_when: false
+  check_mode: false
+
+- name: The declared locale is generated
+  ansible.builtin.command:
+    cmd: "locale-gen {{ shell_messages_locale }}"
+  when:
+    - shell_locale_generate | bool
+    - not ansible_check_mode
+    - shell_messages_locale | length > 0
+    - shell_messages_locale not in shell_available_locales.stdout_lines
+    - (shell_messages_locale | regex_replace('UTF-8$', 'utf8')) not in shell_available_locales.stdout_lines
+  changed_when: true
+
+# 0644 root:root, not 0600 and not +x. `/etc/profile` sources only what it can
+# READ; a 0600 file is silently skipped for every non-root user, and a file
+# writable by anyone is code execution at every login.
+- name: The login environment is declared
+  ansible.builtin.template:
+    src: server-env.sh.j2
+    dest: "{{ shell_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: shell_env_declaration
+
+- name: The interactive aliases and functions are declared
+  ansible.builtin.template:
+    src: server-aliases.sh.j2
+    dest: "{{ shell_alias_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: shell_alias_declaration
+
+# A new `tmux` window, or `su` without `-`, reads neither `/etc/profile` nor
+# `/etc/profile.d`: it would keep the `007` umask that `pam_umask` computed.
+# The same declarations are therefore sourced from the interactive shell's file.
+- name: The interactive shell sources the same declarations
+  ansible.builtin.blockinfile:
+    path: "{{ shell_bashrc }}"
+    marker: "# {mark} MANAGED BY ANSIBLE — the server environment"
+    insertbefore: BOF
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+    block: |
+      # A non-login interactive shell reads this file and nothing in /etc/profile.
+      for _bc_file in {{ shell_env_file }} {{ shell_alias_file }}; do
+      	[ -r "$_bc_file" ] && . "$_bc_file"
+      done
+      unset _bc_file
+  register: shell_bashrc_declaration
+
+# The login display. Debian's second `pam_motd.so noupdate` line still
+# displays the DEFAULT paths (`/etc/motd`, then `/etc/motd.d/`), so the old
+# static file was shown in addition to `identity`'s `/etc/motd`. One owner per
+# surface: `identity` keeps the footer in `/etc/motd`, this role owns the
+# dashboard in `/etc/update-motd.d/`.
+- name: The update-motd directory exists
+  ansible.builtin.file:
+    path: "{{ shell_motd_script | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The login dashboard is declared
+  ansible.builtin.template:
+    src: 50-server-motd.j2
+    dest: "{{ shell_motd_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  register: shell_motd_declaration
+
+# A renamed file in `/etc/motd.d/` would STILL be displayed: pam_motd reads
+# every file in the directory. The file is this role's own, not a package's, so
+# it is removed rather than retired in place.
+- name: The duplicate static banner is removed
+  ansible.builtin.file:
+    path: "{{ shell_motd_retired_banner }}"
+    state: absent
+
+# `base-files` ships `/etc/update-motd.d/10-uname`, whose `uname -snrvm` line
+# would precede the dashboard. A package file is never edited: it is diverted.
+# The target is outside `/etc/update-motd.d/` because every file left there is
+# still executed by pam_motd.
+- name: The retired-script directory exists
+  ansible.builtin.file:
+    path: "{{ shell_motd_uname_divert | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The distribution's uname line is removed from the login display
+  ansible.builtin.command:
+    argv:
+      - dpkg-divert
+      - --divert
+      - "{{ shell_motd_uname_divert }}"
+      - --rename
+      - "{{ shell_motd_uname_source }}"
+    creates: "{{ shell_motd_uname_divert }}"
+
+# --- the result is checked, not assumed --------------------------------------
+
+- name: The session settings are read back from a login shell
+  ansible.builtin.command:
+    cmd: >-
+      sudo -u {{ accounts_human.name }} -H bash -lc 'echo "UMASK=$(umask)";
+      echo "LANG=$LANG"; echo "LC_MESSAGES=$LC_MESSAGES";
+      echo "HISTSIZE=$HISTSIZE"; echo "TMOUT=$TMOUT"; type -t ls'
+  register: shell_effective
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - accounts_human.name is defined
+
+- name: The login shell really applies the declared environment
+  # The four values that were wrong on a real machine: the umask `pam_umask`
+  # rewrote, a missing umask at all, and an `ls` that stayed the binary.
+  #
+  # `umask` prints four digits (`0027`) while the declaration may be written
+  # `027`; the leading zeros are stripped on both sides, so the comparison is on
+  # the value and not on its spelling.
+  ansible.builtin.assert:
+    that:
+      - >-
+        shell_effective.stdout is search('(?m)^UMASK=0*'
+        ~ (shell_umask | regex_replace('^0*', '')) ~ '$')
+      - "'LANG=' ~ shell_lang in shell_effective.stdout"
+      - "'LC_MESSAGES=' ~ shell_messages_locale in shell_effective.stdout"
+      - "'HISTSIZE=' ~ (shell_hist_size | string) in shell_effective.stdout"
+      - "'TMOUT=' ~ (shell_timeout | string) in shell_effective.stdout"
+      - "'function' in shell_effective.stdout"
+    fail_msg: >-
+      {{ inventory_hostname }}: a login shell does not apply the declared
+      environment. Read back:
+      {{ shell_effective.stdout_lines | default([]) | join(' | ') }}.
+      `{{ shell_env_file }}` must be readable (0644) and sourced by
+      `/etc/profile`, or by `/etc/bash.bashrc`.
+  when:
+    - not ansible_check_mode
+    - accounts_human.name is defined
+
+- name: The dashboard and the retired files are read back
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ shell_motd_script }}"
+    - "{{ shell_motd_uname_divert }}"
+    - "{{ shell_motd_retired_banner }}"
+  register: shell_motd_files
+  when: not ansible_check_mode
+
+- name: The login display is one dashboard plus the identity footer
+  ansible.builtin.assert:
+    that:
+      - shell_motd_files.results[0].stat.exists
+      - shell_motd_files.results[0].stat.executable
+      - shell_motd_files.results[0].stat.mode == '0755'
+      - shell_motd_files.results[1].stat.exists
+      - not shell_motd_files.results[2].stat.exists
+    fail_msg: >-
+      {{ inventory_hostname }}: the login display is not the declared one.
+      `{{ shell_motd_script }}` must be executable, `{{ shell_motd_uname_source }}`
+      must be diverted, and `{{ shell_motd_retired_banner }}` must be gone.
+  when: not ansible_check_mode
+
+- name: The dashboard is rendered
+  # The login itself is the real proof; this catches a script that does not run
+  # at all before an operator meets it.
+  ansible.builtin.command:
+    argv:
+      - "{{ shell_motd_script }}"
+  register: shell_motd_render
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: The dashboard names the machine and what it runs
+  ansible.builtin.assert:
+    that:
+      - "(identity_name ~ ' ' ~ identity_version) in shell_motd_render.stdout"
+      - "ansible_facts['hostname'] in shell_motd_render.stdout"
+      - "shell_motd_labels.host in shell_motd_render.stdout"
+      - "shell_motd_labels.memory in shell_motd_render.stdout"
+      - "shell_motd_labels.network in shell_motd_render.stdout"
+      - "shell_motd_labels.units in shell_motd_render.stdout"
+    fail_msg: >-
+      {{ inventory_hostname }}: `{{ shell_motd_script }}` did not render the
+      declared dashboard. Read back:
+      {{ shell_motd_render.stdout_lines | default([]) | join(' | ') }}.
+  when: not ansible_check_mode

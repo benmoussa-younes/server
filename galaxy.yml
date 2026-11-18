@@ -1,0 +1,76 @@
+---
+# The collection contract. `version` must equal VERSION: the gate refuses a
+# mismatch, and the release workflow checks it against the pushed tag.
+namespace: benmoussa
+name: server
+version: "0.1.0"
+readme: README.md
+authors:
+  - Younes BENMOUSSA <younes.benmoussa@pm.me>
+description: >-
+  Ansible roles that turn a freshly installed Debian into a hardened,
+  identified, systemd-native server: accounts, identity, the link, the resolver,
+  time, the firewall, hardening, the cryptographic policy and a local encrypted
+  backup. No service, no desktop, no site data.
+license:
+  - AGPL-3.0-or-later
+  - CC-BY-SA-4.0
+tags:
+  - debian
+  - hardening
+  - server
+  - systemd
+  - security
+  - audit
+dependencies: {}
+homepage: https://github.com/benmoussa-younes/server
+repository: https://github.com/benmoussa-younes/server
+issues: https://github.com/benmoussa-younes/server/issues
+documentation: https://github.com/benmoussa-younes/server#readme
+
+# What a collection consumer must not receive: the repository tooling, the
+# example inventory (a collection never carries an inventory), the CI and the
+# development configuration.
+build_ignore:
+  - .git
+  - .git/**
+  - .github
+  - .github/**
+  - .ansible
+  - .ansible/**
+  - dist
+  - dist/**
+  - artifacts
+  - artifacts/**
+  - inventories
+  - inventories/**
+  - tools
+  - tools/**
+  - tests
+  - tests/**
+  - .opencode
+  - .opencode/**
+  - .vscode
+  - .vscode/**
+  - .agents
+  - .agents/**
+  - .idea
+  - .idea/**
+  - docs
+  - docs/**
+  # The optional server visuals stay in the source archive; the collection
+  # itself is the product, not a wallpaper payload.
+  - assets
+  - assets/**
+  - AGENTS.md
+  - "**/AGENTS.md"
+  - CONTRIBUTING.md
+  - SECURITY.md
+  - .gitignore
+  - .gitattributes
+  - .yamllint
+  - .ansible-lint
+  - ansible.cfg
+  - requirements.yml
+  - "*.tar.gz"
+  - "*.retry"

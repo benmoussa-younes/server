@@ -1,0 +1,138 @@
+---
+# The baseline packages every host must have. This list is the single source: a
+# day-0 install declares the same packages, and this role restores any of them
+# that is later removed.
+common_packages:
+  - openssh-server
+  - sudo
+  - python3
+  - python3-apt
+  - locales
+  - tzdata          # /usr/share/zoneinfo: the time role sets the declared zone
+  - ca-certificates
+  - gnupg
+  - apt-utils
+  - curl
+  - wget
+  - rsync
+  - git
+  - nano           # the one editor; EDITOR points at it (see below)
+  - less
+  - htop
+  - jq
+  - bash-completion
+  - unzip
+  - xz-utils
+  - zstd
+  - bzip2
+  - lm-sensors
+  - smartmontools
+  - nvme-cli       # the NVMe counterpart of smartctl: firmware, namespaces,
+                   # self-test scheduling; smartmontools reads the log, it does
+                   # not reach the controller
+  - pciutils
+  - usbutils
+  - dmidecode
+  - lsof
+  - sysstat
+  - bind9-dnsutils # `dnsutils` is a transitional no-op on the current Debian release
+  - mtr-tiny
+  - traceroute
+  - tcpdump
+  - nftables       # the tool; the ruleset is the security role's
+  - apparmor       # the MAC layer this product relies on
+  - apparmor-utils # aa-enforce/aa-complain: the tools that set profile modes
+  - apt-listchanges # upgrade changelogs; apt only Recommends it, so an
+                    # `autoremove` elsewhere will otherwise take it away
+  # The periodic-upgrade mechanism this product OWNS. The apt-daily timers only
+  # TRIGGER it; without this package they download lists and upgrade nothing.
+  # It is present from the first converge, so a fresh machine is patched.
+  - unattended-upgrades
+  # systemd-timesyncd is NOT here. `chrony` and `systemd-timesyncd` both
+  # Provides/Conflicts `time-daemon`, so a host cannot run both — and the `time`
+  # role, the single owner of the host's time daemon, installs the one the host's
+  # class needs (chrony on the hosts that serve NTP, timesyncd on the clients).
+  # Listing it here would reinstall it on every converge and remove chrony with
+  # it, forever..
+  - man-db
+
+# Packages this product does not want, whatever `tasksel standard` or the
+# installer left behind. Each is either a security smell or dead weight on a
+# converged host; none of them has a dependent.
+common_absent_packages:
+  - inetutils-telnet     # a cleartext client; nothing here speaks telnet
+  - rsh-client           # the r-commands authenticate by address, not by key
+  - talk                 # an unauthenticated 1980s chat service
+  - nis                  # a directory client the base does not use
+  - ldap-utils           # a directory client; a site that needs one declares it
+  - ftp                  # a cleartext file client
+  - at                   # a second scheduler beside systemd timers
+  - installation-report  # an installer artefact, not a runtime tool
+  - reportbug            # a bug reporter — not a runtime tool
+  - laptop-detect        # a laptop probe; this product configures servers
+  - os-prober            # scans for other operating systems at every boot
+  - krb5-locales         # Kerberos message translations
+  - doc-debian           # the Debian manual lives online, not on every host
+  - debian-faq
+  # NOT wamerican. It is a Recommends of cracklib-runtime, which the password
+  # quality policy uses for its dictionary check: the audit called it dead
+  # weight before that policy existed, and removing it now would break it.
+  # Kept as a reminder that a removal is only correct against a known state.
+  # cron is redundant here: every job Debian ships already has an equivalent
+  # systemd timer, and all of them are enabled — apt-daily, apt-daily-upgrade,
+  # apt-listchanges, dpkg-db-backup, e2scrub_all, fstrim, logrotate, man-db,
+  # sysstat-{collect,rotate,summary}. logrotate's
+  # `cron | anacron | cron-daemon | systemd-sysv` is satisfied by systemd-sysv,
+  # and sysstat recommends systemd.
+  - cron
+  - cron-daemon-common
+  # Desktop spell-check packages a server does not need. The product removes
+  # them; it does not configure a desktop. The French documentation
+  # (manpages-fr, util-linux-locales) stays.
+  - aspell
+  - aspell-fr
+  - ifrench-gut
+  - ispell
+  - wfrench
+  - dictionaries-common
+  - emacsen-common
+  # A VM-only artefact: it cannot run without a qga channel, and bare metal
+  # never installs it.
+  - qemu-guest-agent
+  # `vim-tiny` is the editor Debian's `vi` alternative points at, and one editor
+  # is enough. Removing it leaves no `vi`, so `sudo -e`, `visudo` and
+  # `systemctl edit` fall back to `edit`/`nano`; the role declares `EDITOR=nano`
+  # for every session so nothing relies on `vi` being there.
+  - vim-tiny
+  - vim-common
+  # A server has no Bluetooth radio, and `bluetoothd` ships a ConfigurationDirectory
+  # and a D-Bus name nothing here talks to. The metapackage is named too: it is
+  # what an image's package set drags back in, and it did come back on the
+  # reinstalled bench host (measured 2026-10-21). The unit is masked below, so a
+  # later reinstall cannot start it again.
+  - bluez
+  - bluetooth
+
+common_directories:
+  - /etc/server
+
+# The periodic upgrades, declared. `unattended-upgrades` performs them; the
+# apt-daily timers only trigger it. This product installs SECURITY updates on its
+# own -- not full upgrades: a server's packages change on the maintenance
+# window, not under it.
+#
+# The allowed origins match Debian's security archive only. The plain
+# `label=Debian` (the main repository) is deliberately absent: allowing it would
+# upgrade every package automatically, which is not a security patch.
+common_unattended_origins:
+  - "origin=Debian,codename=${distro_codename}-security,label=Debian-Security"
+  - "origin=Debian,codename=${distro_codename},label=Debian-Security"
+
+# Never reboot on its own: these servers hold services, and an unattended reboot
+# is an outage. The kernel is updated, the reboot is the operator's.
+common_unattended_autoreboot: false
+
+# The two apt.conf.d files the mechanism reads. `20auto-upgrades` turns it on;
+# `50unattended-upgrades` says what it may install.
+common_auto_upgrades_file: /etc/apt/apt.conf.d/20auto-upgrades
+common_unattended_upgrades_file: /etc/apt/apt.conf.d/50unattended-upgrades

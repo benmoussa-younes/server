@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# `console-setup.service` has `DefaultDependencies=no` and only waits for
+# local-fs: on a machine whose DRM driver registers late it finishes before
+# `fbcon` attaches, and `fbcon` then resets the console to its built-in font.
+#
+# The first attempt waited on `dev-dri-card0.device`. Debian's udev rules
+# do not tag DRM devices with `systemd` (`99-systemd.rules` tags tty, block, net,
+# sound, … but not drm), so that device unit never becomes active: the `Wants=`
+# job timed out after the default 90 s, logged "Timed out waiting for device",
+# and only then started console-setup. The font was right because of the delay,
+# not because of the event.
+#
+# `systemd-udev-settle.service` waits for the udev queue itself; it is a real
+# service, exists on Debian, and needs no device tag. It is deprecated, but
+# it is the dependency the console path can actually meet. No GPU model, no bus
+# path.
+[Unit]
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service

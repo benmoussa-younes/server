@@ -1,0 +1,14 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[Unit]
+Description=Run the Server local backup
+
+[Timer]
+OnCalendar={{ backup_on_calendar }}
+RandomizedDelaySec={{ backup_randomized_delay }}
+# A machine that was off catches up on the next boot.
+Persistent=true
+Unit=server-backup.service
+
+[Install]
+WantedBy=timers.target

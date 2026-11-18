@@ -1,0 +1,8 @@
+---
+# The product's desired state: the machine base, and nothing else.
+#
+# Server is the base machine. The services (DNS, VPN, load balancing,
+# storage, database, PKI) are not part of this product; a site that declares
+# them assembles them from its own roles.
+- name: The machine base
+  import_playbook: base.yml

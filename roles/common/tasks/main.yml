@@ -1,0 +1,220 @@
+---
+# `/etc/os-release` is rebranded by the `identity` role, so Ansible stops
+# reporting `os_family == 'Debian'` after the first run. The Debian marker that
+# branding never touches is `/etc/debian_version`.
+- name: The Debian base is present
+  ansible.builtin.stat:
+    path: /etc/debian_version
+  register: common_debian_release
+
+- name: The host is a supported platform
+  ansible.builtin.assert:
+    that:
+      - common_debian_release.stat.exists
+      - ansible_facts.python.version.major | int >= 3
+    fail_msg: "{{ inventory_hostname }} must be a Debian-family host with python3."
+
+- name: The baseline packages are present
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    cache_valid_time: 3600
+
+# What `tasksel standard` and the installer leave behind is not always wanted.
+# The list is declared, justified in defaults, and checked here on every run.
+# `laptop-detect` is removed on servers only: it is correct on a laptop.
+- name: The packages this product does not want are absent
+  ansible.builtin.apt:
+    name: "{{ common_absent_packages }}"
+    state: absent
+    purge: true
+    autoremove: true
+
+# The removal above takes the package; the mask takes the unit. A mask lives in
+# /etc/systemd/system and survives a reinstall of `bluez`, so the daemon cannot
+# come back without a deliberate `systemctl unmask`.
+- name: The Bluetooth daemon cannot be started again
+  ansible.builtin.file:
+    src: /dev/null
+    dest: /etc/systemd/system/bluetooth.service
+    state: link
+    force: true
+
+# The editor a session gets. `nano` is the only editor the product installs, and
+# several tools read `EDITOR` before they look for `vi`: `sudo -e`, `visudo`,
+# `systemctl edit`, `crontab -e`, `git commit`. Declaring it here means none of
+# them depends on an editor that is not installed.
+- name: The default editor is declared
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible: the system's editor. `nano` is the only one installed.
+      EDITOR=nano
+      VISUAL=nano
+    dest: /etc/profile.d/10-server-editor.sh
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: The default editor is set for every session
+  # `/etc/environment` belongs to the distribution: a line is ensured, the file
+  # is not rewritten.
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    regexp: '^EDITOR='
+    line: 'EDITOR=nano'
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: The root shell gets the editor too
+  ansible.builtin.lineinfile:
+    path: /root/.bashrc
+    regexp: '^export EDITOR='
+    line: 'export EDITOR=nano'
+    state: present
+    create: true
+    mode: "0600"
+
+# systemd's ssh-generator offers ssh over AF_VSOCK and an AF_UNIX socket. The
+# product uses neither, and on a machine whose vsock is not ready that early it
+# logs a failure on every boot (a race: the generator runs at ~2.1s, the CID is
+# assigned later). Masking it removes two unused access paths and the noise.
+- name: The generator override directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system-generators
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The unused ssh access paths are masked
+  ansible.builtin.file:
+    src: /dev/null
+    dest: /etc/systemd/system-generators/systemd-ssh-generator
+    state: link
+    force: true
+
+- name: The AF_UNIX ssh listener is not wanted
+  ansible.builtin.systemd_service:
+    name: sshd-unix-local.socket
+    state: stopped
+    enabled: false
+  failed_when: false
+
+# The installer can leave a superseded kernel behind, and `apt autoremove` does
+# not reclaim it (measured: `autoremove` reported nothing while two kernels were
+# installed). Purge every kernel but the running one, and keep the metapackage.
+- name: The installed kernel packages are read
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail &&
+      dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*' | grep -v -- '-unsigned' | sort -V
+    executable: /bin/bash
+  register: common_kernels
+  changed_when: false
+
+# Keep the RUNNING kernel and the NEWEST installed (the security update waiting
+# for a reboot). The earlier version purged everything but the running one, so a
+# freshly installed security kernel was removed on the NEXT converge and the
+# fix was lost. Only genuinely superseded kernels are purged.
+- name: The kernels to purge are decided
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail &&
+      all=$(dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*' | grep -v -- '-unsigned' | sort -V) &&
+      newest=$(printf '%s\n' "$all" | tail -1) &&
+      printf '%s\n' "$all" | grep -v -x -e "linux-image-$(uname -r)" -e "$newest" || true
+    executable: /bin/bash
+  register: common_superseded_kernels
+  changed_when: false
+
+- name: Superseded kernels are purged
+  ansible.builtin.apt:
+    name: "{{ common_superseded_kernels.stdout_lines }}"
+    state: absent
+    purge: true
+    autoremove: true
+  when: common_superseded_kernels.stdout_lines | length > 0
+
+- name: The configuration directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ common_directories }}"
+
+# The periodic-upgrade mechanism, declared. The package is in
+# `common_packages`; these two files are its declaration. `unattended-upgrades`
+# performs the upgrades, the apt-daily timers only trigger it -- one mechanism,
+# owned here.
+- name: The periodic upgrade is enabled
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: "{{ common_auto_upgrades_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: What the periodic upgrade may install is declared
+  ansible.builtin.template:
+    src: 50unattended-upgrades.j2
+    dest: "{{ common_unattended_upgrades_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# sysstat's collection is driven by systemd timers, and `/etc/default/sysstat`
+# ships `ENABLED="false"`: the timers run and collect NOTHING (audit). Declare it
+# on, AND enable the timers -- Debian's package leaves them DISABLED (preset
+# enabled), so the flag alone records nothing. The earlier comment here claimed
+# Debian enabled them; a fresh install from the day-0 baseline proved it wrong
+# (P4, 2026-10-07).
+#
+# `create: true` because on a fresh machine the package is installed by the
+# task above but a `--check` run only SIMULATES that install: the conffile does
+# not exist yet, and `lineinfile` without `create` fails on the absent file
+# even in check mode (measured on the bench host, 2026-10-21). On a real run the
+# package has created the file, so `create` never fires.
+- name: The system activity collector is enabled
+  ansible.builtin.lineinfile:
+    path: /etc/default/sysstat
+    regexp: '^ENABLED='
+    line: 'ENABLED="true"'
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+# The package is installed by the task above, so the units exist on a real
+# run -- but not in check mode, where the install is only reported. Starting
+# them is therefore not simulated there.
+- name: The system activity timers actually run
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - sysstat-collect.timer
+    - sysstat-rotate.timer
+    - sysstat-summary.timer
+  when: not ansible_check_mode
+
+# `sysstat.service` is what STARTS those three timers, and enabling the timers
+# alone does not: they declare `WantedBy=sysstat.service`, so their enable links
+# land in `sysstat.service.wants/` and nothing else -- while the packaged unit
+# carries `[Install] WantedBy=multi-user.target` with `Also=` each timer.
+# Measured on a converted host (2026-10-10): with the timers enabled and the service
+# DISABLED, a reboot starts nothing, the three timers come up INACTIVE, and the
+# next converge reports `changed` on all of them -- the finding
+# `base-idempotence-across-reboot`. Enabling the SERVICE is the path the package
+# documents, and it is what pulls them in at boot.
+- name: The unit that starts them is enabled and started
+  ansible.builtin.systemd_service:
+    name: sysstat
+    enabled: true
+    state: started
+  when: not ansible_check_mode

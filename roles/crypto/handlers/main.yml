@@ -1,0 +1,9 @@
+---
+# Restart, not reload: the algorithm list is read when the daemon starts, and a
+# reload keeps the sessions and the old list. The handler runs after the whole
+# configuration has been validated, so a restart can never leave sshd down for
+# a syntax error.
+- name: Restart sshd
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: restarted

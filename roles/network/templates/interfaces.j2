@@ -1,0 +1,10 @@
+# Managed by Ansible; This product's links are owned by systemd-networkd.
+# The installer's file is kept at {{ network_interfaces_backup }}.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Only loopback remains here. `auto` or `allow-hotplug` on the NIC would have
+# ifupdown — or udev's 80-ifupdown.rules — bring the link up and fight
+# systemd-networkd for it, even with networking.service disabled.
+
+auto lo
+iface lo inet loopback

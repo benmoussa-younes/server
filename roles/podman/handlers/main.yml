@@ -1,0 +1,17 @@
+---
+- name: Restart the rootless Podman socket
+  ansible.builtin.command:  # noqa: command-instead-of-module
+    cmd: systemctl --user restart podman.socket
+  become: true
+  become_user: "{{ podman_user }}"
+  environment:
+    HOME: "{{ podman_home }}"
+    USER: "{{ podman_user }}"
+    LOGNAME: "{{ podman_user }}"
+    XDG_RUNTIME_DIR: "/run/user/{{ podman_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ podman_uid }}/bus"
+  when:
+    - not ansible_check_mode
+    - podman_enabled | bool
+    - podman_socket_enabled | bool
+  changed_when: true

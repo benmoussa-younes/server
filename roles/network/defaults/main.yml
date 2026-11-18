@@ -1,0 +1,74 @@
+---
+# The host's link configuration, owned by systemd-networkd.
+#
+# The site declares who each machine is — its address, whether it is a DHCP
+# client, and how it reaches the network — in its inventory; this role only
+# writes that down for networkd and retires ifupdown. `ifupdown` is stopped and
+# neutralised, never purged: the installer's file is kept whole for an exact
+# console rollback.
+
+# The interface the link lives on. Empty means "the interface that carries the
+# default route", which Ansible already observes; a host with more than one NIC
+# pins it here. The link is wired: a wireless interface is refused.
+network_interface: ""
+
+# How the address is obtained: `dhcp` or `static` (written on the machine, for
+# the one host that must come up without the DHCP server it provides).
+network_mode: dhcp
+
+# The static address, split as address and prefix length. Ignored under `dhcp`.
+network_address: ""
+network_prefix: ""
+
+# The default route, the resolver and the search domain the site declares.
+# All three are written in BOTH modes: a DHCP host was found with no nameserver
+# at all, because the installer left it to a client that got none.
+network_gateway: ""
+network_dns: []
+network_domain: ""
+
+# The shape of a resolver address in `resolvectl`'s answer: an IPv4 address
+# (`1.2.3.4`), an IPv6 address (`2001:db8::1`), a bracketed IPv6 one, each with
+# an optional port. The role matches this to read back the servers a link is
+# ACTUALLY using -- the answer is WRAPPED by systemd, so it cannot be compared as
+# text (see the tasks). Deliberately strict: it can never pick up the answer's
+# own label (`Link 2 (enp1s0):`), so a format change cannot silently make the
+# comparison always-false.
+network_link_dns_pattern: >-
+  (?:\d{1,3}(?:\.\d{1,3}){3}|\[[0-9A-Fa-f:]+\]|[0-9A-Fa-f:]*:[0-9A-Fa-f:]+)(?::\d+)?
+
+# How far this role may go.
+#
+#   verify  read the state, write the declaration, and NEVER hand the link over.
+#           A machine that already works cannot be broken by a converge -- the
+#           failure mode this role produced three times on a converted desktop,
+#           each time cutting the session it ran on.
+#   manage  perform the hand-over too: start networkd, retire ifupdown and move
+#           the address. Needed on a fresh machine, and only from a console.
+#
+# `manage` is the default: a fresh server has to be brought up, and `verify`
+# exists for a run that must not move a live link.
+network_apply: manage
+
+# Whether `network-online.target` waits for a link AT ALL.
+#
+# A cable is present from the first moment, so the wait is meaningful and the
+# interface is required for online: the main profile is the physical link, and
+# leaving it out would make `wait-online` refuse to wait on a machine that works.
+network_wait_online: true
+
+# Where the link is declared, and the assets kept for the rollback.
+network_dir: /etc/systemd/network
+network_file: 10-server.network
+network_switch_unit: server-network-switch
+network_switch_script: /usr/local/sbin/server-network-switch
+network_interfaces_file: /etc/network/interfaces
+network_interfaces_backup: /etc/network/interfaces.server-bak
+
+# Resolution continuity across the switch. Stopping ifupdown kills the DHCP
+# client that wrote `/etc/resolv.conf`, and `systemd-resolved` is not installed
+# yet — so the host would lose DNS in between and `apt` could not install the
+# resolver at all. The installer's file is preserved once, and the link's
+# declared servers answer until the resolver owns the file.
+network_resolv_conf: /etc/resolv.conf
+network_resolv_conf_backup: /etc/resolv.conf.server-bak

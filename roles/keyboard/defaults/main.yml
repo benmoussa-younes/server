@@ -1,0 +1,43 @@
+---
+# The console keyboard. The base declares /etc/default/keyboard, but the file
+# does nothing on its own — console-setup owns it, and installing console-setup
+# through pkgsel blocks an unattended install. So the package is installed here,
+# non-interactively, and applied.
+#
+# The layout is the product's default: French, as the operator ordered.
+keyboard_model: pc105
+keyboard_layout: fr
+keyboard_variant: ""
+keyboard_options: ""
+
+# GRUB's keyboard. GRUB runs before the kernel and does not read
+# /etc/default/keyboard: its menu stays US until a layout is compiled with
+# `grub-kbdcomp` (grub-common, using console-setup's ckbcomp) and loaded by a
+# script in /etc/grub.d. The name carries the variant so a changed variant is a
+# new file, regenerated instead of silently reused.
+keyboard_grub_keymap_dir: /boot/grub/keymap
+keyboard_grub_keymap_name: >-
+  {{ keyboard_layout }}{{ ('-' ~ keyboard_variant)
+     if keyboard_variant | length > 0 else '' }}
+keyboard_grub_keymap: "{{ keyboard_grub_keymap_dir }}/{{ keyboard_grub_keymap_name }}.gkb"
+keyboard_grub_script: /etc/grub.d/05_keymap
+
+# The console font is applied by `console-setup`, but `fbcon` resets the console
+# to its built-in font when the DRM driver attaches. On a slow DRM driver that
+# happens AFTER `console-setup` finished (measured on the depot, 2026-10-26:
+# setupcon at 14:52:22, fbcon at 14:52:22.857), and every non-ASCII character
+# becomes `?`. The ordering drop-in waits for `systemd-udev-settle.service`, the
+# udev queue itself; it does not name a device, a GPU model or a bus path. A
+# `dev-dri-card0.device` dependency was tried in an earlier release and times out because
+# Debian does not tag DRM devices with `systemd`.
+keyboard_console_setup_dropin_dir: /etc/systemd/system/console-setup.service.d
+keyboard_console_setup_dropin: "{{ keyboard_console_setup_dropin_dir }}/10-server-drm.conf"
+
+# Debian's `/usr/lib/tmpfiles.d/debian.conf` force-creates `/etc/vconsole.conf`
+# as a symlink to `/etc/default/keyboard` at every boot. The file carries XKB
+# keys, and `localectl` reports `VC Keymap: (unset)`; nothing on Debian
+# applies it (`systemd-vconsole-setup` is absent). `console-setup` owns the
+# console. A small unit runs after Debian's tmpfiles and removes the path, so the
+# inert declaration does not come back.
+keyboard_vconsole_conf: /etc/vconsole.conf
+keyboard_vconsole_remove_service: /etc/systemd/system/server-vconsole-remove.service

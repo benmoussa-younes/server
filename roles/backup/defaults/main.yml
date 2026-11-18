@@ -1,0 +1,46 @@
+---
+# This product's LOCAL backup. A `restic` repository under /var/backups, written
+# by a systemd timer. The repository is encrypted with a password this product
+# provides; the off-site copy is the site's decision, not part of the product --
+# the product exposes the repository, and the operator mirrors it with `restic`
+# to a host they control.
+
+backup_dir: /var/backups/server
+backup_repo: "{{ backup_dir }}/restic"
+
+# The repository password, provided by this product (inventory vault/environment).
+# EMPTY IS REFUSED: a backup that silently runs unencrypted is worse than none.
+# It is written root-only, and must ALSO be kept off the machine -- a lost host
+# otherwise loses its own repository.
+backup_restic_password: ""
+backup_password_file: /etc/server/backup/restic-password
+backup_password_dir: /etc/server/backup
+
+# What the base captures. Service roles extend it (databases, shares) through
+# `backup_extra_paths`; the framework, not the perfect file list, is the point.
+backup_paths:
+  - /etc
+  - /var/lib/dpkg/status
+  - /var/lib/dpkg/status-old
+  - /var/lib/apt/extended_states
+backup_extra_paths: []
+
+# `/etc/machine-id` is excluded: restoring it would CLONE the host identity the
+# product requires to be unique, and systemd regenerates it when it is absent.
+backup_excludes:
+  - /etc/machine-id
+
+# Retention: enough to survive a bad change noticed late.
+backup_keep_daily: 7
+backup_keep_weekly: 4
+backup_keep_monthly: 6
+
+# When the timer runs, and when it verifies the repository. `Persistent=true`
+# makes a machine that was off catch up.
+backup_on_calendar: "*-*-* 02:30:00"
+backup_randomized_delay: "30min"
+backup_check_on_calendar: "Sun *-*-* 04:30:00"
+
+backup_scripts_dir: /usr/local/sbin
+backup_backup_script: "{{ backup_scripts_dir }}/server-backup"
+backup_check_script: "{{ backup_scripts_dir }}/server-backup-check"

@@ -1,0 +1,25 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[Unit]
+Description=Server backup integrity check (restic)
+Documentation=man:restic(1)
+After=local-fs.target
+# No OnFailure: see the backup unit. The product has no notification path.
+
+[Service]
+Type=oneshot
+# `HOME` for the same reason the backup unit declares it, and with a measured
+# caveat: `restic check` builds its OWN temporary cache
+# (`using temporary cache in /tmp/restic-check-cache-…`, measured on the bench host
+# on 2026-10-22), so it does not need the variable to avoid the "unable to open
+# cache" error. It is declared anyway so both units start from the same
+# environment: a unit that behaves differently for a reason nobody wrote down is
+# the next defect.
+Environment=HOME=/root
+ExecStart={{ backup_check_script }}
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full

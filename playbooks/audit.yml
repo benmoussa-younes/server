@@ -1,0 +1,10 @@
+---
+# The read-only audit. It is NOT part of the base converge: it changes nothing,
+# and a site runs it when it wants a report (before an audit, after a change,
+# or on a schedule).
+- name: Audit the declared state of the base machine
+  hosts: "{{ target | default('all') }}"
+  become: true
+  gather_facts: true
+  roles:
+    - audit

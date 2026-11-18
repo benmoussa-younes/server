@@ -1,0 +1,34 @@
+# {{ ansible_managed }}
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Debian's tmpfiles force `/etc/vconsole.conf` to be a symlink to
+# `/etc/default/keyboard` at every boot. That file carries XKB keys, nothing on
+# Debian applies it (`systemd-vconsole-setup` is absent), and `console-setup`
+# owns the console through `/etc/default/keyboard`. This unit runs after the
+# tmpfiles pass and removes the inert path.
+[Unit]
+Description=Remove Debian's inert /etc/vconsole.conf
+After=systemd-tmpfiles-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/rm -f {{ keyboard_vconsole_conf }}
+ProtectSystem=yes
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

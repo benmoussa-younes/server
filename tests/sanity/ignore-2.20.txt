@@ -1,0 +1,14 @@
+LICENSES/CC-BY-SA-4.0.txt no-smart-quotes
+roles/backup/templates/backup.sh.j2 shebang
+roles/backup/templates/check.sh.j2 shebang
+roles/hardening/templates/reboot-check.sh.j2 shebang
+roles/network/templates/server-network-switch.j2 shebang
+roles/security/templates/nftables-server.nft.j2 shebang
+roles/security/templates/server-failsafe-remove.nft.j2 shebang
+roles/security/templates/server-failsafe.nft.j2 shebang
+tools/scripts/binaries/gate.scs shebang
+tools/scripts/binaries/release.scs shebang
+tools/scripts/binaries/verify-release.scs shebang
+tools/scripts/modules/repo.scs shebang
+tools/scripts/modules/secrets.scs shebang
+tools/scripts/modules/verdict.scs shebang

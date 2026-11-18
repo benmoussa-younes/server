@@ -1,0 +1,219 @@
+---
+argument_specs:
+  main:
+    short_description: Kernel and system hardening.
+    description:
+      - >-
+        Declares the kernel settings this product relies on, read from /proc/sys
+        rather than trusted to distribution defaults. The audit found rp_filter
+        0, accept_redirects 1, log_martians 0, kptr_restrict 0, ptrace_scope 0
+        and kexec_load_disabled 0 — nothing was wrong, but nothing was decided.
+    author: Younes BENMOUSSA
+    options:
+      hardening_sysctl_file:
+        type: str
+        required: false
+        description: The sysctl drop-in this role owns.
+      hardening_kexec_load_disabled:
+        type: bool
+        required: false
+        description: >-
+          Disable the kexec system call. False on a host that runs kdump, which
+          loads its crash kernel through kexec.
+      hardening_io_uring_disabled:
+        type: int
+        required: false
+        description: >-
+          `kernel.io_uring_disabled`: 2 disables io_uring for every user, 0
+          leaves it available. The product declares 2 because no service it
+          ships uses io_uring.
+      hardening_ip_forward:
+        type: int
+        required: false
+        description: >-
+          `net.ipv4.ip_forward`: 0 on a base machine, 1 on a host that routes (a
+          VPN endpoint, a router, a NAT gateway). A site that sets 1 declares the
+          matching FORWARD flow in `security_forward_flows` in the same change;
+          otherwise the kernel forwards and the firewall drops.
+      hardening_ipv6_disabled:
+        type: bool
+        required: false
+        description: >-
+          Declare IPv6 absent. True is the product's IPv4-only policy; a site
+          that sets false must also declare IPv6 addressing and firewall rules.
+      hardening_microcode:
+        type: bool
+        required: false
+        description: >-
+          Install the CPU vendor's microcode package, verify the early-load blob
+          is in the initramfs, and read the loaded revision. False is a site
+          decision that must be documented.
+      hardening_microcode_packages:
+        type: dict
+        required: false
+        description: >-
+          The vendor id from /proc/cpuinfo mapped to the Debian package that
+          carries the microcode blob.
+      hardening_microcode_initramfs_path:
+        type: str
+        required: false
+        description: The path the initramfs must contain for the early microcode load.
+      hardening_core_pattern:
+        type: str
+        required: false
+        description: >-
+          Where a core dump goes. `|/bin/false` discards it (the product's
+          default); a site that debugs a service names a collector.
+      hardening_sysrq:
+        type: int
+        required: false
+        description: >-
+          The magic SysRq mask. 176 keeps sync, unmount and reboot; 0 disables
+          SysRq entirely.
+      hardening_modules_blocked:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          Modules prevented from loading at all, via `install … /bin/false`,
+          which is stronger than a blacklist that only stops udev auto-loading.
+          The list itself is in `defaults/main.yml`.
+      hardening_modules_blacklisted:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          Modules whose hardware probe starts them on its own; the blacklist
+          makes that probe find nothing instead of logging a refusal. The list
+          itself is in `defaults/main.yml`.
+      hardening_suid_allowlist:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          Setuid/setgid files allowed to exist without a dpkg owner. Empty by
+          default; the role reports an unowned one and fails.
+      hardening_audit_rules_file:
+        type: str
+        required: false
+        description: The audit rules drop-in (`augenrules` merges `rules.d`).
+      hardening_audit_conf:
+        type: str
+        required: false
+        description: The auditd configuration whose log bound is declared.
+      hardening_audit_max_log_file:
+        type: int
+        required: false
+        description: The maximum size of one audit log file, in MB.
+      hardening_audit_num_logs:
+        type: int
+        required: false
+        description: How many rotated audit log files to keep.
+      hardening_audit_max_log_file_action:
+        type: str
+        required: false
+        description: What auditd does when a log file reaches its maximum size.
+      hardening_grub_default:
+        type: str
+        required: false
+        description: The hardening_grub_default the role declares (defaults/main.yml).
+      hardening_grub_script:
+        type: str
+        required: false
+        description: >-
+          The menu generator whose title line is made to omit the
+          distribution's ` GNU/Linux` suffix.
+      hardening_kernel_cmdline:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          The hardening options the role ensures on the kernel command line.
+          In append mode they are added to the installed line; in replace mode
+          they become the whole line.
+      hardening_cmdline_mode:
+        type: str
+        required: false
+        choices: [append, replace]
+        description: >-
+          How the declaration meets the installed line. `append` keeps every
+          option already present (the graphical splash, hardware workarounds)
+          and adds the missing ones; `replace` takes the list as the whole line.
+      hardening_limits_file:
+        type: str
+        required: false
+        description: The hardening_limits_file the role declares (defaults/main.yml).
+      hardening_limits_nofile:
+        type: int
+        required: false
+        description: The hardening_limits_nofile the role declares (defaults/main.yml).
+      hardening_limits_nproc:
+        type: int
+        required: false
+        description: The hardening_limits_nproc the role declares (defaults/main.yml).
+      hardening_needrestart_conf:
+        type: str
+        required: false
+        description: The hardening_needrestart_conf the role declares (defaults/main.yml).
+      hardening_reboot_check_script:
+        type: str
+        required: false
+        description: The hardening_reboot_check_script the role declares (defaults/main.yml).
+      hardening_shm_mount_options:
+        type: str
+        required: false
+        description: The hardening_shm_mount_options the role declares (defaults/main.yml).
+      hardening_system_limits_file:
+        type: str
+        required: false
+        description: The hardening_system_limits_file the role declares (defaults/main.yml).
+      hardening_tmp_mount_dropin:
+        type: str
+        required: false
+        description: The hardening_tmp_mount_dropin the role declares (defaults/main.yml).
+      hardening_tmp_mount_options:
+        type: str
+        required: false
+        description: The hardening_tmp_mount_options the role declares (defaults/main.yml).
+      hardening_userns_profile:
+        type: str
+        required: false
+        description: The hardening_userns_profile the role declares (defaults/main.yml).
+      hardening_userns_tool:
+        type: str
+        required: false
+        description: The hardening_userns_tool the role declares (defaults/main.yml).
+      hardening_sysctl_kept:
+        type: list
+        elements: str
+        required: false
+        description: >-
+          Files kept in `/etc/sysctl.d/` when the role owns the directory; an
+          empty list means the role owns it unopposed.
+      hardening_panic_seconds:
+        type: int
+        required: false
+        description: Seconds before a kernel panic reboots (kernel.panic).
+      hardening_panic_print:
+        type: str
+        required: false
+        description: The kernel.panic_print mask, so a panic is diagnosable.
+      hardening_oops_limit:
+        type: int
+        required: false
+        description: kernel.oops_limit; a real BUG reboots, a WARN does not.
+      hardening_warn_limit:
+        type: int
+        required: false
+        description: kernel.warn_limit; 0 keeps a WARN from rebooting.
+      hardening_smartd_manage:
+        type: bool
+        required: false
+        description: >-
+          Take ownership of the smartd conffile and install the product's
+          weekly long self-test schedule. False leaves a site's own file
+          untouched.
+      hardening_smartd_conf:
+        type: str
+        required: false
+        description: The smartd conffile the product declares when it owns it.

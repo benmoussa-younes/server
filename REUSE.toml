@@ -1,0 +1,25 @@
+version = 1
+SPDX-PackageName = "server"
+SPDX-PackageSupplier = "Younes BENMOUSSA <younes.benmoussa@pm.me>"
+SPDX-PackageDownloadLocation = "https://github.com/benmoussa-younes/server"
+
+# Default: the product's Ansible code and the repository tooling.
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Younes BENMOUSSA <younes.benmoussa@pm.me>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Documentation is content, licensed separately from the code.
+[[annotations]]
+path = ["README.md", "AGENTS.md", "NOTICE", "**/*.md", "CHANGELOG.md"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Younes BENMOUSSA <younes.benmoussa@pm.me>"
+SPDX-License-Identifier = "CC-BY-SA-4.0"
+
+# The optional product visuals are the same licence as the code.
+[[annotations]]
+path = ["assets/branding/*.png", "assets/branding/*.svg"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Younes BENMOUSSA <younes.benmoussa@pm.me>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

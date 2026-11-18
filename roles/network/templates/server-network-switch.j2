@@ -1,0 +1,70 @@
+#!/bin/bash
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The one moment the link changes hands, run by PID 1 through a transient unit so
+# the address drop cannot abort it.
+#
+# WHY THIS MUST BE HERE AND NOT IN A TASK: handing the link to networkd stops
+# ifupdown, and that cut kills the SSH session the play runs on. A task that
+# disables `networking.service` therefore ends the run -- measured on a
+# converted machine (2026-10-20). Only a process detached from the session can
+# do it and report afterwards.
+#
+# The order, and the reason for it:
+#
+#   1. networkd applies the declaration and WAITS FOR AN ADDRESS;
+#   2. if there is no address, report it and fail: the rollback is the console,
+#      and the message says so;
+#   3. retire ifupdown, and confirm the address survives the hand-over.
+set -uo pipefail
+
+IFACE="{{ network_interface_name }}"
+ADDR="{{ network_address }}"
+WAIT="${NETWORK_SWITCH_WAIT:-90}"
+
+log() { printf 'network-switch: %s\n' "$*"; }
+
+has_address() { ip -4 addr show dev "$IFACE" 2>/dev/null | grep -q 'inet '; }
+
+restore() {
+	# The hand-over is abandoned; nothing else takes the interface back.
+	log "hand-over failed: $*"
+	/usr/bin/ip link set "$IFACE" up 2>/dev/null || true
+	log "NO ADDRESS. At the console: ip link set $IFACE up; then read"
+	log "  journalctl -u systemd-networkd"
+	exit 1
+}
+
+# --- 1. networkd applies the declaration, and the address must appear -------
+/usr/bin/systemctl enable --now systemd-networkd.service
+{% if network_wait_online %}
+/usr/bin/systemctl enable --now systemd-networkd-wait-online.service 2>/dev/null || true
+{% endif %}
+/usr/bin/networkctl reload 2>/dev/null || true
+/usr/bin/networkctl reconfigure "$IFACE" 2>/dev/null || true
+
+waited=0
+while [ "$waited" -lt "$WAIT" ]; do
+	if has_address; then
+		break
+	fi
+	sleep 2
+	waited=$((waited + 2))
+done
+if ! has_address; then
+	restore "no address appeared within ${WAIT}s"
+fi
+
+# --- 2. the declaration's own address is the one applied --------------------
+if [ -n "$ADDR" ] && ! ip -4 addr show dev "$IFACE" | grep -q "inet ${ADDR}/"; then
+	log "warning: $IFACE has an address, but not the declared $ADDR"
+fi
+
+# --- 3. ifupdown has nothing left to do either ------------------------------
+/usr/bin/systemctl disable --now networking.service 2>/dev/null || true
+
+log "hand-over complete: $IFACE holds its address under networkd"
+ip -4 addr show dev "$IFACE" | sed 's/^/    /'
+ip -4 route | grep default | sed 's/^/    /'
+exit 0

@@ -1,0 +1,44 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The environment of a login session. POSIX sh only: `/etc/profile` is read by
+# `sh` as well as `bash`, and a bashism here fails on dash.
+
+# Debian's `pam_umask` rewrites 027 to 007 when the login equals the primary
+# group (it is built with `-Dusergroups=true`). The shell sets the value last.
+umask {{ shell_umask }}
+
+# An idle session does not stay open forever.
+TMOUT={{ shell_timeout }}
+export TMOUT
+
+# History: enough to follow an incident, one entry per command, appended across
+# sessions, and timestamped.
+HISTSIZE={{ shell_hist_size }}
+HISTFILESIZE={{ shell_hist_file_size }}
+HISTCONTROL=ignoreboth
+HISTTIMEFORMAT='%F %T '
+HISTIGNORE='{{ shell_hist_ignore | join(':') }}'
+
+# `C.UTF-8` keeps sort order and decimal points stable for scripts; the messages
+# are French for the person reading them.
+LANG={{ shell_lang }}
+LC_MESSAGES={{ shell_messages_locale }}
+export LANG LC_MESSAGES
+
+EDITOR={{ shell_editor }}
+VISUAL={{ shell_editor }}
+PAGER={{ shell_pager }}
+LESS='{{ shell_less_options }}'
+export EDITOR VISUAL PAGER LESS
+
+# `/usr/sbin` and `/sbin` are not in a non-root login's PATH on Debian. They are
+# appended, never prepended: a directory in front of `/usr/bin` can shadow a
+# real command.
+{% for dir in shell_path_extra %}
+case ":${PATH}:" in
+	*":{{ dir }}:"*) ;;
+	*) PATH="${PATH}:{{ dir }}" ;;
+esac
+{% endfor %}
+export PATH

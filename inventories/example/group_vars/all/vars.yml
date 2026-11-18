@@ -1,0 +1,7 @@
+---
+# The vault is the only place a secret lives. This file maps its `vault_*`
+# names onto the role variables, so no role names a vault variable directly.
+#
+# Create the encrypted file from `vault.yml.example` in this directory (see
+# `README.md`). The vault password stays outside the tree.
+backup_restic_password: "{{ vault_backup_restic_password }}"

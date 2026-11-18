@@ -1,0 +1,39 @@
+---
+# The rootless Podman engine.
+#
+# This role installs and configures the engine, never a container: a service a
+# site runs is the site's, not the base machine's. The human account owns the
+# rootless engine; the rootful socket is not enabled.
+podman_enabled: false
+
+# The account that owns the rootless engine. It defaults to the product's human
+# account; a site may name another existing account.
+podman_user: "{{ accounts_human.name | default('') }}"
+
+podman_packages:
+  - podman
+  - slirp4netns
+  - fuse-overlayfs
+  - uidmap
+  - passt
+
+# The registries an unqualified image name searches.
+podman_registries:
+  - docker.io
+
+podman_registries_dir: /etc/containers/registries.conf.d
+podman_registries_file: "{{ podman_registries_dir }}/99-podman.conf"
+podman_containers_dir: /etc/containers/containers.conf.d
+podman_containers_file: "{{ podman_containers_dir }}/99-podman.conf"
+
+# The user socket and the user manager that keeps it alive without a login.
+podman_socket_enabled: true
+podman_linger: true
+
+# The subordinate ID range declared in /etc/subuid and /etc/subgid. The range
+# must not overlap another account; a collision is a hard failure.
+podman_subuid_start: 100000
+podman_subuid_count: 65536
+
+# The verification runs `podman info` as the owning account.
+podman_verify: true

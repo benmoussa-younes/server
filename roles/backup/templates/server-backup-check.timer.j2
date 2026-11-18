@@ -1,0 +1,13 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[Unit]
+Description=Check the Server local backup
+
+[Timer]
+OnCalendar={{ backup_check_on_calendar }}
+RandomizedDelaySec={{ backup_randomized_delay }}
+Persistent=true
+Unit=server-backup-check.service
+
+[Install]
+WantedBy=timers.target

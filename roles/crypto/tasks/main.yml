@@ -1,0 +1,185 @@
+---
+# The algorithms an SSH connection may negotiate. The distribution's list still
+# offers SHA-1 MACs; this role declares a modern set and drops them.
+- name: The cryptographic policy is a known value
+  ansible.builtin.assert:
+    that:
+      - crypto_openssl_policy in ['modern', 'default']
+    fail_msg: >-
+      {{ inventory_hostname }}: `crypto_openssl_policy` must be `modern` or
+      `default` (got `{{ crypto_openssl_policy }}`).
+
+# --- sshd --------------------------------------------------------------------
+
+- name: The sshd drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ crypto_sshd_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# No `validate: sshd -t -f %s` here: that form parses the fragment ALONE, out of
+# the context of the full configuration, and a fragment is not a valid file on
+# its own. The whole configuration is validated after it is written.
+- name: The SSH algorithms are declared
+  ansible.builtin.template:
+    src: sshd-crypto.conf.j2
+    dest: "{{ crypto_sshd_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: crypto_sshd_declaration
+  notify: Restart sshd
+
+- name: The SSH configuration is valid
+  ansible.builtin.command:
+    cmd: /usr/sbin/sshd -t
+  changed_when: false
+
+- name: The negotiation is read back from sshd
+  # `sshd -T` prints what the daemon WOULD use, not what this file says: it is
+  # the only form that proves the declaration won over any other drop-in.
+  ansible.builtin.command:
+    cmd: /usr/sbin/sshd -T
+  register: crypto_sshd_effective
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: The effective SSH algorithm sets are read
+  ansible.builtin.set_fact:
+    crypto_ciphers_effective: >-
+      {{ crypto_sshd_effective.stdout | regex_findall('(?m)^ciphers (.*)$') | first | default('') }}
+    crypto_macs_effective: >-
+      {{ crypto_sshd_effective.stdout | regex_findall('(?m)^macs (.*)$') | first | default('') }}
+    crypto_kex_effective: >-
+      {{ crypto_sshd_effective.stdout | regex_findall('(?m)^kexalgorithms (.*)$') | first | default('') }}
+    crypto_hostkey_effective: >-
+      {{ crypto_sshd_effective.stdout | regex_findall('(?m)^hostkeyalgorithms (.*)$') | first | default('') }}
+    crypto_pubkey_effective: >-
+      {{ crypto_sshd_effective.stdout | regex_findall('(?m)^pubkeyacceptedalgorithms (.*)$') | first | default('') }}
+  when: not ansible_check_mode
+
+- name: The SSH algorithm sets are the declared ones
+  ansible.builtin.assert:
+    that:
+      - crypto_ciphers_effective == (crypto_sshd_ciphers | join(','))
+      - crypto_macs_effective == (crypto_sshd_macs | join(','))
+      - crypto_kex_effective == (crypto_sshd_kex | join(','))
+      # `sshd -T` may prepend the certificate flavours to these two lists, so
+      # they are checked for what must be absent and for the declared entries,
+      # not for byte equality: a false failure on a correct host is a defect too.
+      - crypto_hostkey_effective is not search('ssh-rsa|ssh-dss')
+      - crypto_pubkey_effective is not search('ssh-rsa|ssh-dss')
+      - crypto_sshd_hostkey_algorithms | difference(crypto_hostkey_effective.split(',')) | length == 0
+    fail_msg: >-
+      {{ inventory_hostname }}: sshd does not use the declared algorithms.
+      Another drop-in in sshd_config.d sorts before {{ crypto_sshd_file | basename }}
+      and overrides it (sshd keeps the FIRST value of a directive).
+  when: not ansible_check_mode
+
+# --- OpenSSL -----------------------------------------------------------------
+
+- name: The OpenSSL policy is applied
+  when: crypto_openssl_policy == 'modern'
+  block:
+    - name: The OpenSSL drop-in directory exists
+      ansible.builtin.file:
+        path: "{{ crypto_openssl_conf_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: The system TLS policy is declared
+      ansible.builtin.template:
+        src: openssl-policy.cnf.j2
+        dest: "{{ crypto_openssl_conf_dir }}/{{ crypto_openssl_policy_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: The OpenSSL configuration includes the policy file
+      # Debian's `openssl.cnf` is a conffile: it is never replaced, and the one
+      # line that makes the policy active is ensured instead. It goes FIRST, so
+      # the policy is read before the distribution's own defaults.
+      #
+      # ONE LITERAL PATH. OpenSSL's `.include` does not expand wildcards: it
+      # accepts `*.cnf` and includes nothing, with no error. Measured
+      # 2026-10-26 on the server bench — a server restricted to
+      # `DHE-RSA-AES256-GCM-SHA384`, a suite absent from the declared
+      # CipherString, still negotiated, while inlining the same content or
+      # naming the file produced `(NONE)`. The `regexp` replaces an earlier
+      # wildcard line, so a migrated host does not end up with two includes.
+      ansible.builtin.lineinfile:
+        path: "{{ crypto_openssl_conf }}"
+        regexp: '^\s*\.include\s+{{ crypto_openssl_conf_dir | regex_escape }}/'
+        line: ".include {{ crypto_openssl_conf_dir }}/{{ crypto_openssl_policy_file }}"
+        insertbefore: BOF
+        state: present
+
+    - name: The main OpenSSL configuration is read
+      ansible.builtin.slurp:
+        src: "{{ crypto_openssl_conf }}"
+      register: crypto_openssl_main
+      check_mode: false
+
+    - name: OpenSSL includes the policy file, by that literal name
+      # The line must BE the expected one, not merely contain it: a commented
+      # line or a wildcard variant would pass a substring test.
+      #
+      # The first version of this control used `is search('^\s*\.include … $')`
+      # and could never match: without `(?m)`, `^` and `$` anchor the whole file,
+      # not the line, so it demanded that the include be the file's only or last
+      # content. It failed on a host whose file was correct — measured on
+      # 2026-10-26, in an earlier release. Comparing against the list of trimmed
+      # lines has no such trap.
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('.include ' ~ crypto_openssl_conf_dir ~ '/' ~ crypto_openssl_policy_file)
+            in ((crypto_openssl_main.content | b64decode).splitlines() | map('trim') | list)
+        fail_msg: >-
+          {{ inventory_hostname }}: {{ crypto_openssl_conf }} does not include
+          {{ crypto_openssl_conf_dir }}/{{ crypto_openssl_policy_file }} by its
+          literal name, so the declared policy is never loaded. OpenSSL silently
+          ignores a wildcard in `.include`.
+      when: not ansible_check_mode
+
+    - name: The effective TLS 1.2 suites are read back
+      # `openssl ciphers` lists the library default unless the policy is loaded,
+      # and then it lists exactly the declared suites: 6 here, 27 on stock
+      # Debian. That difference is the whole measurement.
+      #
+      # The previous assertion checked for the absence of TLS 1.0/1.1, which
+      # OpenSSL 3 already excludes on an untouched Debian: it passed on every
+      # host while the policy was inert. Measure the result, not the mechanism.
+      ansible.builtin.command:
+        cmd: openssl ciphers -s -tls1_2
+      register: crypto_openssl_effective
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: OpenSSL offers exactly the suites the policy declares
+      ansible.builtin.assert:
+        that:
+          - crypto_openssl_effective.rc == 0
+          - >-
+            (crypto_openssl_effective.stdout | trim).split(':') | sort
+            == crypto_openssl_cipher_string.split(':') | sort
+        fail_msg: >-
+          {{ inventory_hostname }}: OpenSSL offers
+          "{{ crypto_openssl_effective.stdout | trim }}" but the policy declares
+          "{{ crypto_openssl_cipher_string }}". The policy is not loaded: check
+          that {{ crypto_openssl_conf }} carries a LITERAL `.include` path, and
+          that {{ crypto_openssl_conf_dir }}/{{ crypto_openssl_policy_file }}
+          exists.
+      when: not ansible_check_mode
+
+- name: The superseded TLS policy is removed when the default is chosen
+  ansible.builtin.file:
+    path: "{{ crypto_openssl_conf_dir }}/{{ crypto_openssl_policy_file }}"
+    state: absent
+  when: crypto_openssl_policy == 'default'

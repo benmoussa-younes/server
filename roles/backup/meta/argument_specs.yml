@@ -1,0 +1,87 @@
+---
+argument_specs:
+  main:
+    short_description: the product's local backup (restic under /var/backups).
+    description:
+      - Installs restic, writes an encrypted local repository under
+        /var/backups, takes a snapshot and applies a retention, driven by a
+        systemd timer, and verifies the repository with a second timer. The
+        off-site copy is an infrastructure decision, not part of the product.
+    author: Younes BENMOUSSA
+    options:
+      backup_dir:
+        type: str
+        required: false
+        description: The directory the repository lives in.
+      backup_repo:
+        type: str
+        required: false
+        description: The restic repository.
+      backup_restic_password:
+        type: str
+        required: false
+        description: The repository password; empty is refused.
+      backup_password_file:
+        type: str
+        required: false
+        description: Where the password is written, root-only.
+      backup_password_dir:
+        type: str
+        required: false
+        description: The directory that holds the password file.
+      backup_paths:
+        type: list
+        elements: str
+        required: false
+        description: What the base captures.
+          - /etc
+          - /var/lib/dpkg/status
+          - /var/lib/dpkg/status-old
+          - /var/lib/apt/extended_states
+      backup_extra_paths:
+        type: list
+        elements: str
+        required: false
+        description: Extra paths a service role adds.
+      backup_excludes:
+        type: list
+        elements: str
+        required: false
+        description: Paths never captured.
+          - /etc/machine-id
+      backup_keep_daily:
+        type: int
+        required: false
+        description: Daily snapshots to keep.
+      backup_keep_weekly:
+        type: int
+        required: false
+        description: Weekly snapshots to keep.
+      backup_keep_monthly:
+        type: int
+        required: false
+        description: Monthly snapshots to keep.
+      backup_on_calendar:
+        type: str
+        required: false
+        description: When the backup timer runs.
+      backup_randomized_delay:
+        type: str
+        required: false
+        description: Randomized delay added to each timer run.
+      backup_check_on_calendar:
+        type: str
+        required: false
+        description: When the integrity-check timer runs.
+      backup_scripts_dir:
+        type: str
+        required: false
+        description: Where the two scripts live.
+      backup_backup_script:
+        type: str
+        required: false
+        description: The backup script path.
+      backup_check_script:
+        type: str
+        required: false
+        description: The check script path.

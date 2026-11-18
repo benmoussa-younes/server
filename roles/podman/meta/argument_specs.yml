@@ -1,0 +1,66 @@
+---
+argument_specs:
+  main:
+    short_description: The optional rootless Podman engine.
+    description:
+      - >-
+        Installs Podman and configures a rootless engine for one existing human
+        account: packages, registry search path, user socket, linger and
+        subordinate IDs. It does not create, start or manage a container; a
+        service a site runs stays the site's. The rootful socket is not enabled.
+    author: Younes BENMOUSSA
+    options:
+      podman_enabled:
+        type: bool
+        required: false
+        description: Whether the engine is selected. False installs nothing.
+      podman_user:
+        type: str
+        required: false
+        description: The existing account that owns the rootless engine. Never root.
+      podman_packages:
+        type: list
+        elements: str
+        required: false
+        description: The Debian packages the engine needs.
+      podman_registries:
+        type: list
+        elements: str
+        required: false
+        description: The registries an unqualified image name searches.
+      podman_registries_dir:
+        type: str
+        required: false
+        description: The registries.conf.d directory.
+      podman_registries_file:
+        type: str
+        required: false
+        description: The drop-in that declares the registry search path.
+      podman_containers_dir:
+        type: str
+        required: false
+        description: The containers.conf.d directory.
+      podman_containers_file:
+        type: str
+        required: false
+        description: The drop-in that declares the engine settings.
+      podman_socket_enabled:
+        type: bool
+        required: false
+        description: Whether the rootless user socket is enabled.
+      podman_linger:
+        type: bool
+        required: false
+        description: Whether the user manager runs without an active login.
+      podman_subuid_start:
+        type: int
+        required: false
+        description: The first subordinate UID/GID of the account.
+      podman_subuid_count:
+        type: int
+        required: false
+        description: The number of subordinate UIDs/GIDs.
+      podman_verify:
+        type: bool
+        required: false
+        description: Whether the role reads the engine back after configuring it.

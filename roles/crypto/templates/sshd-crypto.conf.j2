@@ -1,0 +1,14 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The algorithms SSH may negotiate, declared rather than inherited. The
+# distribution's default still offers `hmac-sha1` and its SHA-1 variants; this
+# file removes them and keeps what is modern and interoperable.
+#
+# `sshd_config` reads `sshd_config.d` in name order and the FIRST value of a
+# directive wins, so `50-` sorts before any `90-` left by another tool.
+Ciphers {{ crypto_sshd_ciphers | join(',') }}
+MACs {{ crypto_sshd_macs | join(',') }}
+KexAlgorithms {{ crypto_sshd_kex | join(',') }}
+HostKeyAlgorithms {{ crypto_sshd_hostkey_algorithms | join(',') }}
+PubkeyAcceptedAlgorithms {{ crypto_sshd_hostkey_algorithms | join(',') }}

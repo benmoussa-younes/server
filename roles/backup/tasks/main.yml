@@ -1,0 +1,100 @@
+---
+# This product's local backup. The repository is encrypted; the
+# off-site copy is the operator's, not the product's.
+
+- name: The backup tool is installed
+  ansible.builtin.apt:
+    name: restic
+    state: present
+    cache_valid_time: 3600
+
+# Empty is refused: a backup that cannot be encrypted must fail loudly, not run
+# in clear. The password must also be kept OFF the machine.
+- name: The site provides a repository password
+  ansible.builtin.assert:
+    that:
+      - backup_restic_password | length > 0
+    fail_msg: >-
+      backup_restic_password is empty. The repository is encrypted, so the role
+      refuses to run rather than back up in clear. Provide the password from the
+      product's vault/environment -- and keep a copy off the machine.
+
+- name: The repository and the password directory exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ backup_dir }}", mode: "0700" }
+    - { path: "{{ backup_password_dir }}", mode: "0700" }
+
+# The one task here that destroys something irreplaceable. The repository is
+# encrypted with THIS password: writing a different one over the file makes
+# every snapshot unreadable while the repository itself stays intact, so the
+# loss is silent until someone tries to restore.
+#
+# `copy` writes in check mode as well -- `no_log` hides the result, not the
+# write. Measured on the bench host (2026-10-22): a `--check` run whose password
+# came from an inventory other than the vault replaced the live one, and
+# `restic snapshots` answered "wrong password or no key found" afterwards.
+# A dry run must never be able to do that, so this write is skipped when the
+# run only simulates.
+- name: The repository password is written, root-only
+  ansible.builtin.copy:
+    content: "{{ backup_restic_password }}\n"
+    dest: "{{ backup_password_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  when: not ansible_check_mode
+
+- name: The backup scripts are in place
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - { src: backup.sh.j2, dest: "{{ backup_backup_script }}" }
+    - { src: check.sh.j2, dest: "{{ backup_check_script }}" }
+
+- name: The systemd units are in place
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - server-backup.service
+    - server-backup.timer
+    - server-backup-check.service
+    - server-backup-check.timer
+  notify: Reload systemd
+
+- name: The units are loaded before they are started
+  ansible.builtin.meta: flush_handlers
+
+- name: The backup timers are enabled and running
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - server-backup.timer
+    - server-backup-check.timer
+  # The units above are written, not installed, in check mode: naming a unit
+  # that systemd does not know yet fails the whole check run.
+  when: not ansible_check_mode
+
+# A first snapshot, so the repository exists and can be verified. `creates` keeps
+# a converge from taking a new snapshot on every run.
+- name: The repository is initialised with a first snapshot
+  ansible.builtin.command:
+    cmd: "{{ backup_backup_script }}"
+    creates: "{{ backup_repo }}/config"
+  when: not ansible_check_mode

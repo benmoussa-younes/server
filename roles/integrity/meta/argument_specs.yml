@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: A SHA-256 baseline of the files no package owns.
+    description:
+      - >-
+        Writes `/var/lib/server/manifest.sha256`, one `<sha256>  <path>` line
+        per file the product creates outside a package, and refuses a missing
+        required file. The read-only audit verifies the manifest with
+        `sha256sum -c`; an edit to `/etc/server`, a `server-*` script or a
+        unit drop-in therefore fails the audit.
+    author: Younes BENMOUSSA
+    options:
+      integrity_paths:
+        type: list
+        elements: dict
+        required: false
+        description: >-
+          The product-owned paths, as `{path, optional}`. An optional path is a
+          valid absence (GRUB's keymap when the layout is empty, the one-time
+          password marker); a required path that is missing fails the role.
+      integrity_manifest_file:
+        type: str
+        required: false
+        description: The manifest the audit reads.
+      integrity_manifest_dir:
+        type: str
+        required: false
+        description: The directory of the manifest, root-only.

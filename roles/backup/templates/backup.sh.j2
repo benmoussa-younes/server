@@ -1,0 +1,32 @@
+#!/bin/bash
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This product's local backup: a restic snapshot of the base's
+# state, then the declared retention. The repository is encrypted with the
+# password in RESTIC_PASSWORD_FILE (root-only). The LOCAL repository is not a
+# defence against losing the disk -- the off-site copy is the operator's.
+set -euo pipefail
+
+export RESTIC_PASSWORD_FILE="{{ backup_password_file }}"
+REPO="{{ backup_repo }}"
+
+# Initialise once. `restic init` is not idempotent, so test for the repo config.
+if [ ! -f "$REPO/config" ]; then
+  restic -r "$REPO" init
+fi
+
+restic -r "$REPO" backup \
+{% for path in backup_paths + backup_extra_paths %}
+  "{{ path }}" \
+{% endfor %}
+{% for exclude in backup_excludes %}
+  --exclude "{{ exclude }}" \
+{% endfor %}
+  --tag server --host "$(hostname)"
+
+restic -r "$REPO" forget \
+  --keep-daily {{ backup_keep_daily }} \
+  --keep-weekly {{ backup_keep_weekly }} \
+  --keep-monthly {{ backup_keep_monthly }} \
+  --prune

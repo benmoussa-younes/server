@@ -1,0 +1,27 @@
+# Managed by Ansible; do not edit.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The {{ network_mode }} link the site declares. systemd-networkd only writes it
+# down; it does not choose the address.
+[Match]
+Name={{ network_interface_name }}
+
+[Network]
+# The address is the site's, taken from DHCP or written here; systemd would
+# otherwise add a 169.254/16 link-local address nobody asked for.
+LinkLocalAddressing=no
+{% if network_mode == 'static' %}
+Address={{ network_address }}/{{ network_prefix }}
+Gateway={{ network_gateway }}
+{% else %}
+DHCP=ipv4
+{% endif %}
+{% if network_dns | length > 0 %}
+# The declared resolver, in BOTH modes: a DHCP client must not depend on the
+# DHCP server offering option 6 (a machine was found with none at all).
+DNS={{ network_dns | join(' ') }}
+{% endif %}
+{% if network_domain | length > 0 %}
+# `~.` routes every name to this link; the bare domain is the search suffix.
+Domains=~. {{ network_domain }}
+{% endif %}

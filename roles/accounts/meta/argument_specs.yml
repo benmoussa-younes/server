@@ -1,0 +1,53 @@
+---
+argument_specs:
+  main:
+    short_description: The accounts this machine keeps.
+    description:
+      - >-
+        The one account this machine keeps: the human operator, who reaches the
+        console with a password, escalates with sudo and a password, and is in
+        the groups that let them diagnose without escalating. No other account
+        exists, and no account holds NOPASSWD.
+    author: Younes BENMOUSSA
+    options:
+      accounts_human:
+        type: dict
+        required: false
+        description: >-
+          The human account and the groups it belongs to, plus
+          `password_expiry` (`never` or a number of days, applied with
+          `chage -M`, which wins over `/etc/login.defs`).
+        options:
+          name:
+            type: str
+            required: false
+            description: >-
+              The existing human account, named by the site. The product creates
+              no account, and an empty name is refused before any task acts.
+          groups:
+            type: list
+            elements: str
+            required: false
+            description: >-
+              The complete group list. The role removes a group the host carries
+              but the site did not declare.
+          password_expiry:
+            type: str
+            required: false
+            description: >-
+              `never` (the default for an operator whose password is held off
+              the machine) or a number of days. An empty value is refused.
+      accounts_expire_bootstrap_password:
+        type: bool
+        required: false
+        description: >-
+          Whether the account's installed password is expired once, so the first
+          login must choose a new one. False when the account already holds the
+          operator's own password.
+      accounts_password_expiry_marker:
+        type: str
+        required: false
+        description: >-
+          The record that the human account's bootstrap password was expired
+          once, so the first login is forced to choose a new one. Re-expiring on
+          every converge would lock the operator out of the password they chose.

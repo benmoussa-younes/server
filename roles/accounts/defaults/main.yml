@@ -1,0 +1,32 @@
+---
+# The accounts this machine keeps: one, the human operator. Reaches the console
+# with a password, escalates with `sudo` AND a password, and is in the groups
+# that let them diagnose without escalating at all.
+#
+# No other account exists, and no account holds NOPASSWD: a root-equivalent
+# automation path is an unused way to root, and the product does not create one.
+
+# The account is the SITE's, not the product's: the product creates none and
+# names none by default. `name` empty is refused before any task acts; the
+# example inventory and the site inventory name the account the installer made.
+accounts_human:
+  name: ""
+  groups:
+    - sudo              # the admin group — and what sshd's allowlist names
+    - adm               # read /var/log without escalating
+    - systemd-journal   # read the journal without escalating
+
+  # Whether the password expires, and after how many days. `never` is a
+  # declaration, not an omission: it is the right setting for the operator's own
+  # account, whose password is held off the machine and whose expiry is a
+  # lockout with no recovery path on a host nobody can reach at the console.
+  # A number sets the maximum age; `0` would expire it at every login.
+  password_expiry: 365
+
+# The bootstrap password. When the account was installed with ONE shared
+# password, that credential is a way in, not a secret the site keeps: it must not
+# survive the first login. The role expires it ONCE and records that it did (see
+# the tasks). Set this to false when the account ALREADY holds the operator's
+# own password, which must not be forced to change.
+accounts_expire_bootstrap_password: true
+accounts_password_expiry_marker: /var/lib/server/human-password-expired
