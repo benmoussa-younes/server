@@ -2,13 +2,15 @@
 # The boot splash.
 #
 # A server boots to a console, and the screen between GRUB and the login prompt
-# belongs to the product. The theme is built from this product's own `assets/`
-# (never from the workstation's), selected with `plymouth-set-default-theme`,
-# compiled into the initramfs, and read back from what the boot reads.
+# belongs to the product. The theme ships INSIDE the role (`files/theme`):
+# `galaxy.yml` keeps `assets/` out of the collection -- the wallpaper payload
+# stays in the source archive -- so a theme read from there would be missing the
+# moment the collection is consumed. Measured on server-01 and server-02,
+# 2026-11-21: the role failed on the controller path before this moved.
 
 # The theme compiled into the initramfs and started by `plymouthd`.
 plymouth_theme_name: server
-plymouth_theme_source: "{{ role_path }}/../../assets/branding/theme/server"
+plymouth_theme_source: "{{ role_path }}/files/theme"
 plymouth_theme_dir: /usr/share/plymouth/themes/server
 
 # The package that CONFIGURES the splash: `plymouth-set-default-theme` and the
