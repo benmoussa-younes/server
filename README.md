@@ -98,7 +98,7 @@ all:
     security_ssh_sources: [192.0.2.0/24]
     time_timezone: Etc/UTC
   hosts:
-    server-01:
+    example-server-01:
       ansible_host: 192.0.2.10
 ```
 
