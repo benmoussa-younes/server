@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `resolver`: the first converge stops on `resolvectl dns` because Debian's
+  postinst reloads the bus before the `systemd-resolve` user exists, so
+  dbus-daemon drops the resolver's policy block and the resolver never claims
+  `org.freedesktop.resolve1`; every `resolvectl` call then waits out the 25 s
+  activation timeout while the stub still resolves. The role now probes the
+  bus, reloads the policy and restarts the resolver once, then asserts on the
+  result. Measured on server-02, 2026-11-20.
 - `audit`: an absent file is a reported deviation, not an abort. On a host the
   product has not converged yet, the PAM slurp failed the play before writing
   any report; it now tolerates the absence and the extraction reads it as empty.
