@@ -31,8 +31,8 @@ the Server/Workstation/Container family, shipped as the collection
 - **A restic backup in place**: a local encrypted repository, its timer and its
   weekly check, plus a SHA-256 baseline of the files the product writes outside
   a package.
-- **A branded boot**: the product's name in os-release and on the login banner,
-  its splash on the console, and its image behind the GRUB menu.
+- **A branded boot**: the console splash and the image behind the GRUB menu,
+  both carrying the product's mark and name.
 - **A read-only audit playbook** that measures the declared state and writes one
   JSON report, separate from the converge.
 - **Provable by construction**: every role reads its own change back, and a
