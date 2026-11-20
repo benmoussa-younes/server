@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20
+
+### Removed
+
+- The `podman` role is gone: the rootless engine, its registry path, user
+  socket, linger and subordinate IDs, and the `tap*`/`podman*` forward links in
+  `security` move to the `container` product. A site that set
+  `podman_enabled: true` declares the engine there instead. The `62-podman-userns`
+  exception and the `podman_enabled` condition in `hardening` go with it.
+
 ## [0.1.1] - 2026-11-20
 
 ### Fixed

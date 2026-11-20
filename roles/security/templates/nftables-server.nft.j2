@@ -83,16 +83,6 @@ table inet {{ security_firewall_table }} {
 {% for flow in security_forward_flows %}
         iifname "{{ flow.iif }}" oifname "{{ flow.oif }}"{% if flow.sources is defined and flow.sources %} ip saddr { {{ flow.sources | join(', ') }} }{% endif %} accept
 {% endfor %}
-{% if podman_enabled | default(false) %}
-        # Rootless Podman's user-space network appears as a tap/bridge; the
-        # product's forward policy is drop, so allow the engine's own links.
-        # A published container port remains a site service: declare it in
-        # `security_extra_services`.
-        iifname "tap*" accept
-        iifname "podman*" accept
-        oifname "tap*" accept
-        oifname "podman*" accept
-{% endif %}
 {% if security_forward_policy == 'drop' %}
         counter drop
 {% endif %}

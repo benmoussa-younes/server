@@ -65,9 +65,6 @@ integrity_paths:
   - { path: /etc/systemd/system/server-backup-check.timer }
   # accounts
   - { path: "{{ accounts_password_expiry_marker }}", optional: true }
-  # podman (optional: absent when podman_enabled is false)
-  - { path: /etc/containers/registries.conf.d/99-podman.conf, optional: true }
-  - { path: /etc/containers/containers.conf.d/99-podman.conf, optional: true }
 
 integrity_manifest_file: /var/lib/server/manifest.sha256
 integrity_manifest_dir: /var/lib/server

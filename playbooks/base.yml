@@ -50,11 +50,6 @@
       tags: [crypto]
     - role: backup
       tags: [backup]
-    # The rootless container engine is optional and inert by default; it never
-    # starts a container. It runs before the integrity baseline so its optional
-    # configuration files are in the manifest when it is enabled.
-    - role: podman
-      tags: [podman]
     # The integrity baseline comes last: it records what every role above wrote
     # outside a package, and the read-only audit verifies it afterwards.
     - role: integrity
