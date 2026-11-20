@@ -186,10 +186,15 @@
   failed_when: false
   when: not ansible_check_mode
 
-- name: The bus policy is re-read when the resolver does not answer
-  ansible.builtin.systemd_service:
-    name: dbus.service
-    state: reloaded
+- name: The bus policy is re-read when the resolver does not answer  # noqa: command-instead-of-module
+  # `systemctl reload dbus.service` cannot carry this: the performance role
+  # aliases `dbus.service` to `dbus-broker.service` for the next boot, while the
+  # running process is still dbus-daemon, and the reload job fails on the
+  # notification the old daemon never sends (measured on server-02, 2026-11-20).
+  # The signal re-reads the configuration whatever provider is running.
+  ansible.builtin.command:
+    cmd: systemctl kill --signal=HUP dbus.service
+  changed_when: true
   when:
     - not ansible_check_mode
     - resolver_bus.rc | default(0) != 0
