@@ -24,7 +24,13 @@ integrity_paths:
   - { path: /etc/plymouth/plymouthd.conf }
   - { path: /usr/share/plymouth/themes/server/server.plymouth }
   - { path: /usr/share/plymouth/themes/server/server.script }
-  - { path: /usr/share/plymouth/themes/server/logo.png }
+  - { path: /usr/share/plymouth/themes/server/logo_circle.png }
+  - { path: /usr/share/plymouth/themes/server/plymouth_background_waves.png }
+  - { path: /usr/share/plymouth/themes/server/debian.png }
+  - { path: /usr/share/plymouth/themes/server/password_dot.png }
+  - { path: /usr/share/plymouth/themes/server/password_field.png }
+  # branding
+  - { path: /boot/grub/server-grub.png }
   # performance
   - { path: "{{ performance_sysctl_file }}" }
   - { path: "{{ performance_network_sysctl_file }}" }

@@ -17,9 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`backup_restore_proof`, true by default).
 - `hardening`: the audit rules watch `/boot` itself, not only
   `/etc/default/grub`, so a kernel or initramfs change is on the trail.
+- `branding`: the boot menu's image. `GRUB_BACKGROUND` points at the product's
+  PNG, installed under `/boot/grub/` from the role's own files; the role
+  regenerates the menu and reads the `background_image` line back.
 - `plymouth`: the boot splash is the product's. A `plymouth` role installs the
-  `server` theme from its own `files/theme` (the mark, the product name, and
-  the boot/shutdown/reboot/fsck/password messages),
+  `server` theme from its own `files/theme` -- the Workstation Edition splash
+  (softwaves) with this product's circular mark and `Server Edition` under it,
+  and the boot/shutdown/reboot/fsck/password messages --
   selects it, compiles it into the initramfs and reads the selection back from
   the archive the boot actually opens. `plymouth-themes` is installed with it:
   the initramfs hook gives a text splash the `label-pango.so` plugin and the

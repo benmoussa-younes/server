@@ -1,0 +1,21 @@
+---
+# The product's visuals, applied.
+#
+# There is one: the GRUB menu's image. A server boots to a console, so the
+# wallpaper and the GDM logo the workstation product installs have nothing to
+# draw on; the boot menu and the Plymouth splash are the screens a server shows.
+#
+# The PNG ships inside the role (`files/`): `galaxy.yml` keeps `assets/` out of
+# the collection, so an image read from there would be missing the moment the
+# collection is consumed -- the Plymouth theme taught that on 2026-11-21.
+#
+# `/etc/default/grub` belongs to `hardening` too. This role ensures ONE key
+# (`GRUB_BACKGROUND`) and never rewrites the file.
+
+branding_grub_image_source: "{{ role_path }}/files/server-grub.png"
+
+# GRUB draws the image before the kernel exists, so the copy lives where the
+# bootloader reads it: a plain PNG on `/boot`, and the path in `/etc/default/grub`.
+branding_grub_image_dir: /boot/grub
+branding_grub_image: /boot/grub/server-grub.png
+branding_grub_default: /etc/default/grub
