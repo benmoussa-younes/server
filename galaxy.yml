@@ -3,7 +3,7 @@
 # mismatch, and the release workflow checks it against the pushed tag.
 namespace: benmoussa
 name: server
-version: "0.1.0"
+version: "0.3.0"
 readme: README.md
 authors:
   - Younes BENMOUSSA <younes.benmoussa@pm.me>
@@ -59,7 +59,8 @@ build_ignore:
   - docs
   - docs/**
   # The optional server visuals stay in the source archive; the collection
-  # itself is the product, not a wallpaper payload.
+  # itself is the product, not a wallpaper payload. The Plymouth theme is not
+  # one of them: it ships inside `roles/plymouth/files/`.
   - assets
   - assets/**
   - AGENTS.md

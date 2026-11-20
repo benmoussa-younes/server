@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-21
+
+### Added
+
+- `backup`: after the first snapshot, one file is restored into a throwaway
+  directory and compared to the live one. `restic check` proves the
+  repository's structure; only a restore proves the data comes back
+  (`backup_restore_proof`, true by default).
+- `hardening`: the audit rules watch `/boot` itself, not only
+  `/etc/default/grub`, so a kernel or initramfs change is on the trail.
+- `branding`: the boot menu's image. `GRUB_BACKGROUND` points at the product's
+  PNG, installed under `/boot/grub/` from the role's own files; the role
+  regenerates the menu and reads the `background_image` line back.
+- `plymouth`: the boot splash is the product's. A `plymouth` role installs the
+  `server` theme from its own `files/theme` -- the Workstation Edition splash
+  (softwaves) with this product's circular mark and `Server Edition` under it,
+  and the boot/shutdown/reboot/fsck/password messages --
+  selects it, compiles it into the initramfs and reads the selection back from
+  the archive the boot actually opens. `plymouth-themes` is installed with it:
+  the initramfs hook gives a text splash the `label-pango.so` plugin and the
+  fonts it renders with, and `update-initramfs` fails without
+  `/etc/fonts/fonts.conf`. `hardening` now declares `splash` on the
+  kernel command line; without it Plymouth paints nothing.
+
+### Changed
+
+- `shell`: the login dashboard names the system it is — `Système  Server
+  Edition <version> · Debian <release> · noyau <version>` — instead of the base
+  distribution alone, and the kernel is shown as its version (`6.12.117`), not
+  its ABI suffix. The storage row separates the mount from its figures:
+  `/ : 1,2 Gio / 38,2 Gio (4 % utilisé)`.
+
+### Fixed
+
+- `resolver`: the first converge stops on `resolvectl dns` because Debian's
+  postinst reloads the bus before the `systemd-resolve` user exists, so
+  dbus-daemon drops the resolver's policy block and the resolver never claims
+  `org.freedesktop.resolve1`; every `resolvectl` call then waits out the 25 s
+  activation timeout while the stub still resolves. The role now probes the
+  bus, re-reads the policy by SIGHUP (a `systemctl reload` job cannot: the unit
+  is aliased to `dbus-broker.service` while `dbus-daemon` still runs) and
+  restarts the resolver once, then asserts on the result. Measured on
+  server-02, 2026-11-20.
+- `audit`: an absent file is a reported deviation, not an abort. On a host the
+  product has not converged yet, the PAM slurp failed the play before writing
+  any report; it now tolerates the absence and the extraction reads it as empty.
+
+### Removed
+
+- The `podman` role is gone: the rootless engine, its registry path, user
+  socket, linger and subordinate IDs, and the `tap*`/`podman*` forward links in
+  `security` move to the `container` product. A site that set
+  `podman_enabled: true` declares the engine there instead. The `62-podman-userns`
+  exception and the `podman_enabled` condition in `hardening` go with it.
+
+## [0.1.1] - 2026-11-20
+
+### Fixed
+
+- The base converge's dry run no longer warns on a drop-in directory the role
+  has not created yet: the listing is guarded by a remote `stat` and defaults
+  its result, in `journald`, `hardening`, `resolver` and `time`.
+
 ## [0.1.0] - 2026-11-19
 
 ### Fixed

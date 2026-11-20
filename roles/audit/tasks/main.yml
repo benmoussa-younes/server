@@ -153,6 +153,10 @@
   failed_when: false
 
 
+# An absent file is a finding, not an abort: this role is the read-only audit,
+# and a host the product has not converged yet must still produce a report that
+# names the missing file. `failed_when: false` keeps the loop going and the
+# extraction below reads an absent file as empty.
 - name: The PAM stacks and the password policy are read
   ansible.builtin.slurp:
     src: "{{ item }}"
@@ -164,6 +168,7 @@
     - /etc/profile.d/90-server-env.sh
   register: audit_pam_files
   check_mode: false
+  failed_when: false
 
 - name: The effective coredump configuration is read
   ansible.builtin.command:
@@ -311,9 +316,9 @@
     audit_ssh_usepam: >-
       {{ audit_sshd.stdout | regex_findall('(?m)^usepam (.*)$')
          | first | default('') }}
-    audit_pam_auth: "{{ audit_pam_files.results[0].content | b64decode }}"
-    audit_pam_password: "{{ audit_pam_files.results[1].content | b64decode }}"
-    audit_pwquality: "{{ audit_pam_files.results[2].content | b64decode }}"
+    audit_pam_auth: "{{ (audit_pam_files.results[0].content | default('')) | b64decode }}"
+    audit_pam_password: "{{ (audit_pam_files.results[1].content | default('')) | b64decode }}"
+    audit_pwquality: "{{ (audit_pam_files.results[2].content | default('')) | b64decode }}"
     audit_audit_enabled: "{{ audit_daemon.stdout | regex_findall('(?m)^enabled ([0-9])$') | first | default('0') }}"
     audit_audit_rule_count: "{{ audit_rules.stdout_lines | length }}"
     audit_sysctl_values: "{{ audit_sysctl.stdout_lines }}"
@@ -356,7 +361,7 @@
     # Read from the source, not from `audit_pwquality`: a value set in this same
     # `set_fact` is not visible to its siblings.
     audit_pwquality_minlen: >-
-      {{ (audit_pam_files.results[2].content | b64decode)
+      {{ (audit_pam_files.results[2].content | default('') | b64decode)
          | regex_findall('(?m)^minlen\s*=\s*([0-9]+)')
          | first | default('0') }}
     audit_forbidden_found: >-
@@ -365,16 +370,16 @@
     audit_sudoers_unnamed: >-
       {{ audit_sudoers.stdout_lines | default([]) | map('basename') | list
          | difference(audit_sudoers_keep) }}
-    audit_login_defs: "{{ audit_pam_files.results[3].content | b64decode }}"
-    audit_env_file: "{{ audit_pam_files.results[4].content | b64decode }}"
+    audit_login_defs: "{{ (audit_pam_files.results[3].content | default('')) | b64decode }}"
+    audit_env_file: "{{ (audit_pam_files.results[4].content | default('')) | b64decode }}"
     audit_inactive: >-
       {{ (audit_shadow.stdout | default('')).split(':')[6] | default('')
          if audit_human_user | length > 0 else '' }}
     audit_umask_value: >-
-      {{ (audit_pam_files.results[3].content | b64decode)
+      {{ (audit_pam_files.results[3].content | default('') | b64decode)
          | regex_findall('(?m)^UMASK\s+(\S+)') | first | default('') }}
     audit_timeout: >-
-      {{ (audit_pam_files.results[4].content | b64decode)
+      {{ (audit_pam_files.results[4].content | default('') | b64decode)
          | regex_findall('(?m)^TMOUT=([0-9]+)') | first | default('0') }}
     audit_legacy_installed: >-
       {{ ansible_facts.packages.keys() | list | intersect(audit_legacy_packages) }}

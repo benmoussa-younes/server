@@ -20,6 +20,17 @@ integrity_paths:
   - { path: /etc/systemd/system/server-reboot-check.service }
   - { path: /etc/systemd/system/server-reboot-check.timer }
   - { path: /etc/systemd/coredump.conf.d/50-server.conf }
+  # plymouth
+  - { path: /etc/plymouth/plymouthd.conf }
+  - { path: /usr/share/plymouth/themes/server/server.plymouth }
+  - { path: /usr/share/plymouth/themes/server/server.script }
+  - { path: /usr/share/plymouth/themes/server/logo_circle.png }
+  - { path: /usr/share/plymouth/themes/server/plymouth_background_waves.png }
+  - { path: /usr/share/plymouth/themes/server/debian.png }
+  - { path: /usr/share/plymouth/themes/server/password_dot.png }
+  - { path: /usr/share/plymouth/themes/server/password_field.png }
+  # branding
+  - { path: /boot/grub/server-grub.png }
   # performance
   - { path: "{{ performance_sysctl_file }}" }
   - { path: "{{ performance_network_sysctl_file }}" }
@@ -65,9 +76,6 @@ integrity_paths:
   - { path: /etc/systemd/system/server-backup-check.timer }
   # accounts
   - { path: "{{ accounts_password_expiry_marker }}", optional: true }
-  # podman (optional: absent when podman_enabled is false)
-  - { path: /etc/containers/registries.conf.d/99-podman.conf, optional: true }
-  - { path: /etc/containers/containers.conf.d/99-podman.conf, optional: true }
 
 integrity_manifest_file: /var/lib/server/manifest.sha256
 integrity_manifest_dir: /var/lib/server

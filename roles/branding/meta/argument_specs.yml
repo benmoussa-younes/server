@@ -1,0 +1,28 @@
+---
+argument_specs:
+  main:
+    short_description: The Server boot menu image.
+    description:
+      - >-
+        Installs the product's boot-menu image where GRUB reads it, ensures the
+        `GRUB_BACKGROUND` key in `/etc/default/grub` (a file `hardening` also
+        writes, and neither role rewrites), regenerates the menu and reads the
+        `background_image` line back from `/boot/grub/grub.cfg`.
+    author: Younes BENMOUSSA
+    options:
+      branding_grub_image_source:
+        type: str
+        required: false
+        description: The image in this role's own files.
+      branding_grub_image_dir:
+        type: str
+        required: false
+        description: The directory the bootloader reads.
+      branding_grub_image:
+        type: str
+        required: false
+        description: The installed image.
+      branding_grub_default:
+        type: str
+        required: false
+        description: The file the background key is ensured in.

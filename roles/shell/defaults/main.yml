@@ -127,6 +127,7 @@ shell_motd_labels:
   uptime: Actif depuis
   memory: Mémoire
   storage: Stockage
+  used: utilisé
   network: Réseau
   updates: Mises à jour
   units: Unités

@@ -91,6 +91,8 @@
 ## Package management and boot configuration.
 -w /etc/apt/ -p wa -k apt
 -w /etc/default/grub -p wa -k boot
+# The kernel and the initramfs live here: a change is a change to what boots.
+-w /boot -p wa -k boot
 -w /etc/modprobe.d/ -p wa -k modules
 -w /etc/systemd/system/ -p wa -k systemd
 

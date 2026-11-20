@@ -85,3 +85,7 @@ argument_specs:
         type: str
         required: false
         description: The check script path.
+      backup_restore_proof:
+        type: bool
+        required: false
+        description: Restore one file after the snapshot and compare it to the live one.

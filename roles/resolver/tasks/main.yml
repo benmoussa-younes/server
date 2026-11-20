@@ -169,39 +169,86 @@
 
 # The result, not the mechanism: the size of the outage this role can cause is
 # the size of its upstream list, because the stub is the host's only resolver.
+#
+# Debian's postinst adds the `systemd-resolve` user and ships the bus policy,
+# and dpkg reloads the bus while the user does not exist yet: dbus-daemon then
+# drops `<policy user="systemd-resolve">` ("Unknown username"), the resolver is
+# denied the name at start, and every `resolvectl` call waits out the 25 s
+# activation timeout while name resolution still works through the stub. That
+# is the state the first converge measured on server-02 (2026-11-20): the role
+# stopped on this very call. The policy is re-read and the resolver restarted
+# once, so the host is repaired instead of left half-installed.
+- name: The resolver answers on the bus
+  ansible.builtin.command:
+    cmd: resolvectl dns
+  register: resolver_bus
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: The bus policy is re-read when the resolver does not answer  # noqa: command-instead-of-module
+  # `systemctl reload dbus.service` cannot carry this: the performance role
+  # aliases `dbus.service` to `dbus-broker.service` for the next boot, while the
+  # running process is still dbus-daemon, and the reload job fails on the
+  # notification the old daemon never sends (measured on server-02, 2026-11-20).
+  # The signal re-reads the configuration whatever provider is running.
+  ansible.builtin.command:
+    cmd: systemctl kill --signal=HUP dbus.service
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - resolver_bus.rc | default(0) != 0
+
+- name: The resolver claims its bus name again after the reload
+  ansible.builtin.systemd_service:
+    name: systemd-resolved.service
+    state: restarted
+  when:
+    - not ansible_check_mode
+    - resolver_bus.rc | default(0) != 0
+
 - name: The upstreams the resolver will ask are read
   ansible.builtin.command:
     cmd: resolvectl dns
   register: resolver_upstreams
   changed_when: false
+  failed_when: false
   when: not ansible_check_mode
 
 - name: The resolver has servers to ask
   ansible.builtin.assert:
     that:
+      - resolver_upstreams.rc | default(0) == 0
       - resolver_upstreams.stdout | trim | length > 0
     fail_msg: >-
       {{ inventory_hostname }}: systemd-resolved is the host's only resolver and
-      has NO upstream. Read `resolvectl dns`; declare `network_dns` or
-      `resolver_fallback_dns`, then run the role again.
+      has NO usable upstream -- or it does not answer on the bus at all. Read
+      `resolvectl dns` and `systemctl status systemd-resolved`; declare
+      `network_dns` or `resolver_fallback_dns`, then run the role again.
   when: not ansible_check_mode
 
 # The directory this role declares in is owned. Measured on a converted machine
 # (2026-10-20): a drop-in left by that machine's previous configuration sorted
 # after `10-server.conf` and won BOTH keys -- `DNSSEC=no` and `Domains=~.` --
 # while the role reported success and `resolvectl` showed the other policy.
+- name: The resolver drop-in directory is known
+  ansible.builtin.stat:
+    path: "{{ resolver_conf_dir }}"
+  register: resolver_conf_dir_state
+
 - name: The resolver drop-ins already present are listed
   ansible.builtin.find:
     paths: "{{ resolver_conf_dir }}"
     patterns: "*.conf"
     file_type: file
   register: resolver_existing
+  when: resolver_conf_dir_state.stat.isdir | default(false)
 
 - name: The resolver drop-ins are attached to a package, or not
   ansible.builtin.command:
     cmd: dpkg-query -S {{ item }}
   loop: >-
-    {{ resolver_existing.files | map(attribute='path')
+    {{ resolver_existing.files | default([]) | map(attribute='path')
        | reject('search', '\.retired-')
        | reject('equalto', resolver_dropin)
        | list }}
@@ -215,7 +262,7 @@
   ansible.builtin.command:
     cmd: >-
       mv {{ item.item }} {{ item.item }}.retired-{{ ansible_date_time.date }}
-  loop: "{{ resolver_owner.results | rejectattr('rc', 'equalto', 0) | list }}"
+  loop: "{{ resolver_owner.results | default([]) | rejectattr('rc', 'equalto', 0) | list }}"
   loop_control:
     label: "{{ item.item | basename }}"
   changed_when: true
