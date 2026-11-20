@@ -61,6 +61,17 @@
     mode: "0644"
   register: plymouth_theme_install
 
+# A file removed from the theme source does not disappear from an installed
+# tree: `copy` adds and updates, it does not delete. The first version of this
+# theme shipped a square mark (`logo.png`); the shared softwaves splash draws
+# the circular one. Retired here, and the initramfs is rebuilt so the old file
+# leaves the archive too.
+- name: The retired mark is absent
+  ansible.builtin.file:
+    path: "{{ plymouth_theme_dir }}/logo.png"
+    state: absent
+  notify: Rebuild the initramfs
+
 - name: The selected theme is declared
   ansible.builtin.template:
     src: plymouthd.conf.j2
