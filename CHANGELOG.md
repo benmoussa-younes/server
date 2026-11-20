@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-11-20
+## [0.3.0] - 2026-11-21
 
 ### Added
 
@@ -46,8 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dbus-daemon drops the resolver's policy block and the resolver never claims
   `org.freedesktop.resolve1`; every `resolvectl` call then waits out the 25 s
   activation timeout while the stub still resolves. The role now probes the
-  bus, reloads the policy and restarts the resolver once, then asserts on the
-  result. Measured on server-02, 2026-11-20.
+  bus, re-reads the policy by SIGHUP (a `systemctl reload` job cannot: the unit
+  is aliased to `dbus-broker.service` while `dbus-daemon` still runs) and
+  restarts the resolver once, then asserts on the result. Measured on
+  server-02, 2026-11-20.
 - `audit`: an absent file is a reported deviation, not an abort. On a host the
   product has not converged yet, the PAM slurp failed the play before writing
   any report; it now tolerates the absence and the extraction reads it as empty.

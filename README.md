@@ -31,7 +31,8 @@ the Server/Workstation/Container family, shipped as the collection
 - **A restic backup in place**: a local encrypted repository, its timer and its
   weekly check, plus a SHA-256 baseline of the files the product writes outside
   a package.
-  need; a published port stays a site decision.
+- **A branded boot**: the product's name in os-release and on the login banner,
+  its splash on the console, and its image behind the GRUB menu.
 - **A read-only audit playbook** that measures the declared state and writes one
   JSON report, separate from the converge.
 - **Provable by construction**: every role reads its own change back, and a
@@ -67,8 +68,9 @@ sha256sum -c SHA256SUMS
 
 The collection carries the roles, the playbooks, `meta/` and the licence texts.
 It does not carry an inventory: the site owns its inventory and its vault. The
-optional emerald visuals (`assets/`) stay in the source archive, not in the
-collection. The source archive carries `inventories/example/`, which documents
+visuals the product applies (the Plymouth theme, the boot-menu image) ship inside
+their roles; the optional emerald set of `assets/` (wallpaper, mark, SVG sources)
+stays in the source archive. The source archive carries `inventories/example/`, which documents
 the site-facing variables with TEST-NET-1 values only.
 
 ## Use it
@@ -140,6 +142,8 @@ ansible-playbook -i inventories/acme/hosts.yml benmoussa.server.audit \
 | `keyboard` | The console keyboard, its GRUB copy and the console font. |
 | `shell` | The login shell: umask, history, locale, editor, pager and the login dashboard. |
 | `hardening` | sysctls, module lists, auditd rules, resource limits, the kernel command line and the boot title. |
+| `plymouth` | The boot splash: the shared Workstation/Server theme, this product's mark and name, compiled into the initramfs. |
+| `branding` | The boot menu's image and the `GRUB_BACKGROUND` key that points at it. |
 | `performance` | The declared VM, I/O and TCP tuning, THP and the CPU governor. |
 | `network` | The wired link, owned by `systemd-networkd`. A wireless interface is refused. |
 | `resolver` | The stub resolver, fed by the link or by a declared resolver. |
@@ -157,11 +161,15 @@ README of its own: its contract is its variables and its
 ## Branding
 
 The displayed name is `Server Edition`; a site overrides `identity_name` (and
-the URL variables the `identity` role reads). The source archive carries an
-optional emerald visual set under the AGPL (`assets/branding/`): a wallpaper, a
-mark and a GRUB image. The collection archive excludes it. No role installs
-them: a site that wants them copies them, or declares its own files from its
-own path and keeps its own licence for them.
+the URL variables the `identity` role reads). The boot is branded too: `plymouth`
+installs the splash the two editions share — the Workstation Edition theme with
+this product's circular mark and `Server Edition` under it — and `branding` puts
+the product's image behind the GRUB menu. Both files ship inside their roles.
+
+The source archive keeps an optional emerald set under the AGPL
+(`assets/branding/`): a wallpaper, the mark and the SVG sources. No role installs
+those: a site that wants them copies them, or declares its own files from its own
+path and keeps its own licence for them.
 
 ## Verify a run
 
@@ -173,8 +181,9 @@ own path and keeps its own licence for them.
 
 ## Project status
 
-`0.3.0` is the current release (the first was `0.1.0`). Debian amd64 is the only supported base; a newer
-Debian release is added when the product declares it. The product is maintained
+`0.3.0` is the current release (the first was `0.1.0`). Debian amd64 is the only
+supported base; a newer Debian release is added when the product declares it.
+The product is maintained
 by one author; there is no support contract, service level or warranty, express
 or implied (see [`CONTRIBUTING.md`](CONTRIBUTING.md) and
 [`SECURITY.md`](SECURITY.md)).
