@@ -20,6 +20,26 @@
     cache_valid_time: 3600
   when: plymouth_install_themes | bool
 
+# The initramfs hook copies this file into the splash's font directory. A host
+# without it fails `update-initramfs` AFTER the theme is selected, and the error
+# names the hook's `cp`, not the missing package.
+- name: The fonts the hook copies are present
+  ansible.builtin.stat:
+    path: /etc/fonts/fonts.conf
+  register: plymouth_fontconfig
+  when: not ansible_check_mode
+
+- name: The splash can render its text
+  ansible.builtin.assert:
+    that:
+      - plymouth_fontconfig.stat.exists
+    fail_msg: >-
+      {{ inventory_hostname }}: /etc/fonts/fonts.conf is missing, so the
+      initramfs hook cannot copy the fonts the splash renders with and
+      `update-initramfs` fails. `{{ plymouth_themes_package }}` provides it
+      through fontconfig-config.
+  when: not ansible_check_mode
+
 # The theme is a manifest (`server.plymouth`), a script (`server.script`) and
 # its image. Copied as a tree: the manifest names the script and the image
 # directory by their INSTALLED paths, so a renamed file is a theme that starts

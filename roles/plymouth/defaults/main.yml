@@ -17,9 +17,14 @@ plymouth_theme_dir: /usr/share/plymouth/themes/server
 # initramfs hook live here. The theme files alone are inert.
 plymouth_package: plymouth
 
-# The distribution's theme collection is NOT installed on a server: the splash
-# is this product's, and every extra package is a package to patch.
-plymouth_install_themes: false
+# The distribution's theme collection. Not for its themes: for what a text
+# splash needs on Debian. The initramfs hook gives any theme that is not
+# `text|details|tribar` the `label-pango.so` plugin and copies the fonts it
+# renders with, and both come from this package (`plymouth-label` and
+# `fonts-*` are its dependencies). Without it `update-initramfs` fails on
+# `/etc/fonts/fonts.conf`, which a server has no reason to carry otherwise.
+# Measured on server-01 and server-02, 2026-11-20.
+plymouth_install_themes: true
 plymouth_themes_package: plymouth-themes
 
 # The tool that reads the selected theme and the one that rebuilds the

@@ -33,8 +33,9 @@ argument_specs:
         type: bool
         required: false
         description: >-
-          Install the distribution's theme collection. False on a server: the
-          splash is this product's, and the collection is extra packages.
+          Install the distribution's theme collection. True by default: a text
+          splash needs the `label-pango.so` plugin and the fonts the initramfs
+          hook copies, and both come from that package.
       plymouth_themes_package:
         type: str
         required: false

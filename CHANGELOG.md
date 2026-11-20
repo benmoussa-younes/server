@@ -21,7 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `server` theme from its own `files/theme` (the mark, the product name, and
   the boot/shutdown/reboot/fsck/password messages),
   selects it, compiles it into the initramfs and reads the selection back from
-  the archive the boot actually opens. `hardening` now declares `splash` on the
+  the archive the boot actually opens. `plymouth-themes` is installed with it:
+  the initramfs hook gives a text splash the `label-pango.so` plugin and the
+  fonts it renders with, and `update-initramfs` fails without
+  `/etc/fonts/fonts.conf`. `hardening` now declares `splash` on the
   kernel command line; without it Plymouth paints nothing.
 
 ### Changed
