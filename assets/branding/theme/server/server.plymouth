@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Server Edition
+Description=Server Edition boot theme
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/server
+ScriptFile=/usr/share/plymouth/themes/server/server.script

@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`backup_restore_proof`, true by default).
 - `hardening`: the audit rules watch `/boot` itself, not only
   `/etc/default/grub`, so a kernel or initramfs change is on the trail.
+- `plymouth`: the boot splash is the product's. A `plymouth` role installs the
+  `server` theme from this product's `assets/branding/theme/server` (the mark,
+  the product name, and the boot/shutdown/reboot/fsck/password messages),
+  selects it, compiles it into the initramfs and reads the selection back from
+  the archive the boot actually opens. `hardening` now declares `splash` on the
+  kernel command line; without it Plymouth paints nothing.
 
 ### Changed
 

@@ -205,6 +205,9 @@ hardening_kernel_cmdline:
   # next reboot; the rules themselves are loaded by `auditd` after it starts.
   - audit=1
   - audit_backlog_limit=8192
+  # The splash. Plymouth paints nothing without this option, and the `plymouth`
+  # role refuses a host where it is missing rather than editing GRUB twice.
+  - splash
 
 # How the declaration meets the line the machine already has.
 #

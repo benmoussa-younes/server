@@ -28,6 +28,10 @@
       tags: [shell]
     - role: hardening
       tags: [hardening]
+    # The boot splash comes after `hardening`, which owns `/etc/default/grub` and
+    # declares `splash` there; the theme is read back from the initramfs.
+    - role: plymouth
+      tags: [plymouth]
     - role: performance
       tags: [performance]
     - role: network

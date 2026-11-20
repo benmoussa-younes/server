@@ -20,6 +20,11 @@ integrity_paths:
   - { path: /etc/systemd/system/server-reboot-check.service }
   - { path: /etc/systemd/system/server-reboot-check.timer }
   - { path: /etc/systemd/coredump.conf.d/50-server.conf }
+  # plymouth
+  - { path: /etc/plymouth/plymouthd.conf }
+  - { path: /usr/share/plymouth/themes/server/server.plymouth }
+  - { path: /usr/share/plymouth/themes/server/server.script }
+  - { path: /usr/share/plymouth/themes/server/logo.png }
   # performance
   - { path: "{{ performance_sysctl_file }}" }
   - { path: "{{ performance_network_sysctl_file }}" }
