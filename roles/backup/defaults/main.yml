@@ -44,3 +44,8 @@ backup_check_on_calendar: "Sun *-*-* 04:30:00"
 backup_scripts_dir: /usr/local/sbin
 backup_backup_script: "{{ backup_scripts_dir }}/server-backup"
 backup_check_script: "{{ backup_scripts_dir }}/server-backup-check"
+
+# Restore one file after the first snapshot and compare it to the live one. A
+# repository whose structure checks but whose data cannot be read is not a
+# backup; turn this off only to skip the read on a very large repository.
+backup_restore_proof: true

@@ -98,3 +98,37 @@
     cmd: "{{ backup_backup_script }}"
     creates: "{{ backup_repo }}/config"
   when: not ansible_check_mode
+
+# `restic check` proves the repository's structure, not that the data comes
+# back. One small file, restored into a throwaway directory and compared to the
+# live one, is the proof: it reads the repository exactly as a recovery would.
+- name: The repository is restorable
+  when:
+    - not ansible_check_mode
+    - backup_restore_proof
+  block:
+    - name: The restore directory exists
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: server-restore-
+      register: backup_restore_dir
+
+    - name: One file is restored from the latest snapshot
+      ansible.builtin.command:
+        cmd: >-
+          restic -r {{ backup_repo }} restore latest
+          --target {{ backup_restore_dir.path }} --include /etc/hostname
+      environment:
+        RESTIC_PASSWORD_FILE: "{{ backup_password_file }}"
+      changed_when: false
+
+    - name: The restored file matches the live one
+      ansible.builtin.command:
+        cmd: cmp /etc/hostname {{ backup_restore_dir.path }}/etc/hostname
+      changed_when: false
+  always:
+    - name: The restore directory is removed
+      ansible.builtin.file:
+        path: "{{ backup_restore_dir.path }}"
+        state: absent
+      when: backup_restore_dir.path is defined

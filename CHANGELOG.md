@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-11-20
 
+### Added
+
+- `backup`: after the first snapshot, one file is restored into a throwaway
+  directory and compared to the live one. `restic check` proves the
+  repository's structure; only a restore proves the data comes back
+  (`backup_restore_proof`, true by default).
+- `hardening`: the audit rules watch `/boot` itself, not only
+  `/etc/default/grub`, so a kernel or initramfs change is on the trail.
+
+### Fixed
+
+- `audit`: an absent file is a reported deviation, not an abort. On a host the
+  product has not converged yet, the PAM slurp failed the play before writing
+  any report; it now tolerates the absence and the extraction reads it as empty.
+
 ### Removed
 
 - The `podman` role is gone: the rootless engine, its registry path, user
