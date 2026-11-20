@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `hardening`: the audit rules watch `/boot` itself, not only
   `/etc/default/grub`, so a kernel or initramfs change is on the trail.
 
+### Changed
+
+- `shell`: the login dashboard names the system it is — `Système  Server
+  Edition <version> · Debian <release> · noyau <kernel>` — instead of the base
+  distribution alone, and the kernel string is no longer followed by the
+  architecture it already carries. The storage row separates the mount from its
+  figures: `/ : 1,2 Gio / 38,2 Gio (4 % utilisé)`.
+
 ### Fixed
 
 - `resolver`: the first converge stops on `resolvectl dns` because Debian's
