@@ -59,9 +59,13 @@ line "{{ padded(shell_motd_labels.host) }}" "$(uname -n)"
 
 debian=$(cat /etc/debian_version 2>/dev/null || true)
 # The system is the edition this product installs, so the row names it first and
-# the Debian base second. The kernel string already carries the architecture
-# (`...-amd64`): appending `$(uname -m)` said it twice.
-line "{{ padded(shell_motd_labels.system) }}" "{{ identity_name }} {{ identity_version }} · Debian ${debian:-unknown} · noyau $(uname -r)"
+# the Debian base second. The kernel is shown as its version alone: the ABI
+# suffix (`+deb13-amd64`) carries the architecture and the build, and the row
+# is read at a glance, not compared.
+kernel=$(uname -r)
+kernel=${kernel%%+*}
+kernel=${kernel%%-*}
+line "{{ padded(shell_motd_labels.system) }}" "{{ identity_name }} {{ identity_version }} · Debian ${debian:-unknown} · noyau ${kernel}"
 
 read -r uptime_seconds _ < /proc/uptime
 uptime_seconds=${uptime_seconds%%.*}
