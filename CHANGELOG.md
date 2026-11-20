@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-20
+
+### Fixed
+
+- The base converge's dry run no longer warns on a drop-in directory the role
+  has not created yet: the listing is guarded by a remote `stat` and defaults
+  its result, in `journald`, `hardening`, `resolver` and `time`.
+
 ## [0.1.0] - 2026-11-19
 
 ### Fixed
