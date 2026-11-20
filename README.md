@@ -1,6 +1,6 @@
 # Server Edition
 
-[![Release](https://img.shields.io/badge/release-0.1.0-blue)](https://github.com/benmoussa-younes/server/releases/tag/v0.1.0)
+[![Release](https://img.shields.io/badge/release-0.1.1-blue)](https://github.com/benmoussa-younes/server/releases/tag/v0.1.1)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0--or--later-blue)](LICENSE)
 [![CI](https://github.com/benmoussa-younes/server/actions/workflows/ci.yml/badge.svg)](https://github.com/benmoussa-younes/server/actions/workflows/ci.yml)
 
@@ -55,10 +55,10 @@ collection.
 From the release tarball:
 
 ```sh
-ansible-galaxy collection install benmoussa-server-0.1.0.tar.gz -p ./collections
+ansible-galaxy collection install benmoussa-server-0.1.1.tar.gz -p ./collections
 ```
 
-The release also carries `server-0.1.0-src.tar.gz` (the source tree with the
+The release also carries `server-0.1.1-src.tar.gz` (the source tree with the
 example inventory and the repository tooling) and `SHA256SUMS`. Verify the
 checksums before installing:
 
@@ -175,7 +175,7 @@ own path and keeps its own licence for them.
 
 ## Project status
 
-`0.1.0` is the first release. Debian amd64 is the only supported base; a newer
+`0.1.1` is the current release (the first was `0.1.0`). Debian amd64 is the only supported base; a newer
 Debian release is added when the product declares it. The product is maintained
 by one author; there is no support contract, service level or warranty, express
 or implied (see [`CONTRIBUTING.md`](CONTRIBUTING.md) and
