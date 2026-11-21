@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-21
+
+### Added
+
+- `hardening`: `hardening_unprivileged_userns_clone` (0 or 1, default 0)
+  declares the value of `kernel.unprivileged_userns_clone`. A host that runs
+  the rootless container capability sets 1, because rootless Podman clones an
+  unprivileged user namespace for every container while the hardened default
+  disables them entirely. The declaration, the assertion on the running kernel
+  and the audit then agree.
+
+### Changed
+
+- The product version is `0.3.1`; the hardened default is unchanged.
+
 ## [0.3.0] - 2026-11-21
 
 ### Added
