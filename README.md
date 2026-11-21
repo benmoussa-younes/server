@@ -1,6 +1,6 @@
 # Server Edition
 
-[![Release](https://img.shields.io/badge/release-0.3.0-blue)](https://github.com/benmoussa-younes/server/releases/tag/v0.3.0)
+[![Release](https://img.shields.io/badge/release-0.3.1-blue)](https://github.com/benmoussa-younes/server/releases/tag/v0.3.1)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0--or--later-blue)](LICENSE)
 [![CI](https://github.com/benmoussa-younes/server/actions/workflows/ci.yml/badge.svg)](https://github.com/benmoussa-younes/server/actions/workflows/ci.yml)
 
@@ -55,10 +55,10 @@ collection.
 From the release tarball:
 
 ```sh
-ansible-galaxy collection install benmoussa-server-0.3.0.tar.gz -p ./collections
+ansible-galaxy collection install benmoussa-server-0.3.1.tar.gz -p ./collections
 ```
 
-The release also carries `server-0.3.0-src.tar.gz` (the source tree with the
+The release also carries `server-0.3.1-src.tar.gz` (the source tree with the
 example inventory and the repository tooling) and `SHA256SUMS`. Verify the
 checksums before installing:
 
@@ -141,7 +141,7 @@ ansible-playbook -i inventories/acme/hosts.yml benmoussa.server.audit \
 | `journald` | The journal's size and retention. |
 | `keyboard` | The console keyboard, its GRUB copy and the console font. |
 | `shell` | The login shell: umask, history, locale, editor, pager and the login dashboard. |
-| `hardening` | sysctls, module lists, auditd rules, resource limits, the kernel command line and the boot title. |
+| `hardening` | sysctls (including `kernel.unprivileged_userns_clone`, declared by `hardening_unprivileged_userns_clone`: 0 by default, 1 on a host that runs rootless containers), module lists, auditd rules, resource limits, the kernel command line and the boot title. |
 | `plymouth` | The boot splash: the shared Workstation/Server theme, this product's mark and name, compiled into the initramfs. |
 | `branding` | The boot menu's image and the `GRUB_BACKGROUND` key that points at it. |
 | `performance` | The declared VM, I/O and TCP tuning, THP and the CPU governor. |
@@ -181,7 +181,7 @@ path and keeps its own licence for them.
 
 ## Project status
 
-`0.3.0` is the current release (the first was `0.1.0`). Debian amd64 is the only
+`0.3.1` is the current release (the first was `0.1.0`). Debian amd64 is the only
 supported base; a newer Debian release is added when the product declares it.
 The product is maintained
 by one author; there is no support contract, service level or warranty, express
