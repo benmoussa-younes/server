@@ -183,6 +183,14 @@ argument_specs:
         type: str
         required: false
         description: The hardening_userns_tool the role declares (defaults/main.yml).
+      hardening_unprivileged_userns_clone:
+        type: int
+        required: false
+        choices: [0, 1]
+        description: >-
+          The value declared for `kernel.unprivileged_userns_clone`: 0 disables
+          unprivileged user namespaces (the hardened default), 1 is required by
+          a host that runs rootless containers.
       hardening_sysctl_kept:
         type: list
         elements: str

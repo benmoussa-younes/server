@@ -122,5 +122,8 @@ net.ipv6.conf.default.accept_ra = 0
 # AppArmor transition (`apparmor_restrict_unprivileged_unconfined=1` + an enforced
 # `unprivileged_userns` profile) was MEASURED INEFFECTIVE on Debian: a new
 # userns process stays `unconfined`. `unprivileged_userns_clone=0` is the working
-# lever and DISABLES unprivileged user namespaces entirely.
-kernel.unprivileged_userns_clone = 0
+# lever and DISABLES unprivileged user namespaces entirely. A host that runs
+# rootless containers declares 1 through
+# `hardening_unprivileged_userns_clone`: rootless Podman clones an unprivileged
+# namespace for every container, so the two cannot both hold.
+kernel.unprivileged_userns_clone = {{ hardening_unprivileged_userns_clone }}
