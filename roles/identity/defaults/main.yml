@@ -15,7 +15,7 @@ identity_name: "{{ identity_names[identity_product] }}"
 
 # The edition's own version. It moves when this product is released, never when
 # the distribution is upgraded.
-identity_version: "0.3.2"
+identity_version: "0.3.3"
 
 # The host name this product declares. Empty leaves `/etc/hostname` and the
 # running name untouched: a site that names its machines at install time does
