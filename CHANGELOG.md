@@ -147,7 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The integrity role records a SHA-256 baseline of the files the product writes
   outside a package.
 
-[Unreleased]: https://github.com/benmoussa-younes/server/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/benmoussa-younes/server/compare/v0.3.3...HEAD
 [0.3.3]: https://github.com/benmoussa-younes/server/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/benmoussa-younes/server/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/benmoussa-younes/server/compare/v0.3.0...v0.3.1
