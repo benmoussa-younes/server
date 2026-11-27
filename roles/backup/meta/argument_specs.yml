@@ -88,4 +88,4 @@ argument_specs:
       backup_restore_proof:
         type: bool
         required: false
-        description: Restore one file after the snapshot and compare it to the live one.
+        description: Restore one file after the snapshot and compare it to the copy the repository holds.

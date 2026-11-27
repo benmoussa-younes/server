@@ -101,7 +101,11 @@
 
 # `restic check` proves the repository's structure, not that the data comes
 # back. One small file, restored into a throwaway directory and compared to the
-# live one, is the proof: it reads the repository exactly as a recovery would.
+# copy the repository itself holds, is the proof: it reads the repository
+# exactly as a recovery would. Comparing to the live file tied the probe to
+# snapshot freshness -- the latest snapshot can predate a host rename or a
+# distribution upgrade, and a restorable repository then failed a converge.
+# Freshness belongs to the backup timer, not here.
 # The working directory lives and dies inside this run, so it is not machine
 # state: its creation and its removal report no change, and the probe's only
 # signal is the run's verdict -- ok when the repository restores, failure when
@@ -119,18 +123,47 @@
       register: backup_restore_dir
       changed_when: false
 
-    - name: One file is restored from the latest snapshot
+    - name: The latest snapshot is identified
+      ansible.builtin.command:
+        cmd: restic -r "{{ backup_repo }}" snapshots --latest 1 --json
+      environment:
+        RESTIC_PASSWORD_FILE: "{{ backup_password_file }}"
+      register: backup_restore_snapshot
+      changed_when: false
+
+    - name: The repository holds a snapshot to prove
+      ansible.builtin.assert:
+        that:
+          - (backup_restore_snapshot.stdout | from_json | length) > 0
+        fail_msg: >-
+          {{ inventory_hostname }}: the repository at {{ backup_repo }} holds no
+          snapshot, so the restore proof has nothing to read.
+
+    - name: One file is restored from that snapshot
       ansible.builtin.command:
         cmd: >-
-          restic -r {{ backup_repo }} restore latest
-          --target {{ backup_restore_dir.path }} --include /etc/hostname
+          restic -r "{{ backup_repo }}" restore
+          "{{ (backup_restore_snapshot.stdout | from_json)[0].id }}"
+          --target "{{ backup_restore_dir.path }}" --include /etc/hostname
       environment:
         RESTIC_PASSWORD_FILE: "{{ backup_password_file }}"
       changed_when: false
 
-    - name: The restored file matches the live one
+    - name: The repository's own copy of the file is read
+      ansible.builtin.shell:
+        cmd: >-
+          restic -r "{{ backup_repo }}" dump
+          "{{ (backup_restore_snapshot.stdout | from_json)[0].id }}"
+          /etc/hostname > "{{ backup_restore_dir.path }}/hostname.snapshot"
+      environment:
+        RESTIC_PASSWORD_FILE: "{{ backup_password_file }}"
+      changed_when: false
+
+    - name: The restored file matches the repository's own copy
       ansible.builtin.command:
-        cmd: cmp /etc/hostname {{ backup_restore_dir.path }}/etc/hostname
+        cmd: >-
+          cmp "{{ backup_restore_dir.path }}/hostname.snapshot"
+          "{{ backup_restore_dir.path }}/etc/hostname"
       changed_when: false
   always:
     - name: The restore directory is removed

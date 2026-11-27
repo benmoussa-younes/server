@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-27
+
+### Fixed
+
+- `backup`: the restore probe now compares the restored file with the copy the
+  repository holds, not with the live file. A host renamed after the latest
+  snapshot no longer fails a converge whose repository still restores. The
+  probe keeps failing when the repository cannot be read.
+
 ## [0.3.2] - 2026-11-27
 
 ### Fixed
