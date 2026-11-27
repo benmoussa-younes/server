@@ -31,7 +31,7 @@ playbooks' syntax. It does not change tracked files.
 
 ## Repository facts
 
-- The collection is `benmoussa.server`, version `0.3.1`.
+- The collection is `benmoussa.server`, version `0.3.2`.
 - The product code is `AGPL-3.0-or-later`; the documentation is
   `CC-BY-SA-4.0`.
 - A release is a signed tag `v<version>` and three assets: the collection

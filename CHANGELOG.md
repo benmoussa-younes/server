@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-27
+
+### Fixed
+
+- `backup`: the restore probe no longer reports `changed` on a converged host.
+  The throwaway working directory it creates and removes is not machine state;
+  the probe still fails when the repository cannot be restored.
+
 ## [0.3.1] - 2026-11-21
 
 ### Added
