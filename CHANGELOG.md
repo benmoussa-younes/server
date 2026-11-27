@@ -76,6 +76,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `audit`: an absent file is a reported deviation, not an abort. On a host the
   product has not converged yet, the PAM slurp failed the play before writing
   any report; it now tolerates the absence and the extraction reads it as empty.
+- The base converge's dry run no longer warns on a drop-in directory the role
+  has not created yet: the listing is guarded by a remote `stat` and defaults
+  its result, in `journald`, `hardening`, `resolver` and `time`.
 
 ### Removed
 
@@ -84,14 +87,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `security` move to the `container` product. A site that set
   `podman_enabled: true` declares the engine there instead. The `62-podman-userns`
   exception and the `podman_enabled` condition in `hardening` go with it.
-
-## [0.1.1] - 2026-11-20
-
-### Fixed
-
-- The base converge's dry run no longer warns on a drop-in directory the role
-  has not created yet: the listing is guarded by a remote `stat` and defaults
-  its result, in `journald`, `hardening`, `resolver` and `time`.
 
 ## [0.1.0] - 2026-11-19
 
@@ -143,5 +138,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The integrity role records a SHA-256 baseline of the files the product writes
   outside a package.
 
-[Unreleased]: https://github.com/benmoussa-younes/server/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/benmoussa-younes/server/compare/v0.3.2...HEAD
+[0.3.3]: https://github.com/benmoussa-younes/server/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/benmoussa-younes/server/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/benmoussa-younes/server/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/benmoussa-younes/server/compare/v0.1.0...v0.3.0
 [0.1.0]: https://github.com/benmoussa-younes/server/releases/tag/v0.1.0
