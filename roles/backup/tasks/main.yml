@@ -102,6 +102,11 @@
 # `restic check` proves the repository's structure, not that the data comes
 # back. One small file, restored into a throwaway directory and compared to the
 # live one, is the proof: it reads the repository exactly as a recovery would.
+# The working directory lives and dies inside this run, so it is not machine
+# state: its creation and its removal report no change, and the probe's only
+# signal is the run's verdict -- ok when the repository restores, failure when
+# it does not. Measured 2026-11-27: a converged host reported changed=2, both
+# from this directory.
 - name: The repository is restorable
   when:
     - not ansible_check_mode
@@ -112,6 +117,7 @@
         state: directory
         prefix: server-restore-
       register: backup_restore_dir
+      changed_when: false
 
     - name: One file is restored from the latest snapshot
       ansible.builtin.command:
@@ -131,4 +137,5 @@
       ansible.builtin.file:
         path: "{{ backup_restore_dir.path }}"
         state: absent
+      changed_when: false
       when: backup_restore_dir.path is defined
